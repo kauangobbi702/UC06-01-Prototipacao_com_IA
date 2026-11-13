@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minhas aulas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                DEFAULT: '#4338CA',
+                50: '#EEF2FF',
+                700: '#3730A3',
+              },
+              accent: {
+                DEFAULT: '#0E7490',
+                700: '#155E75',
+              },
+              success: {
+                50: '#DCFCE7',
+                800: '#166534',
+              },
+              bg: '#F8F9FA',
+              surface: '#FFFFFF',
+              text: '#111827',
+              muted: '#4B5563',
+              border: '#E5E7EB',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style type="text/tailwindcss">
+      @layer base {
+        :focus-visible {
+          @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-bg;
+        }
+      }
+      @layer components {
+        .btn-primary {
+          @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition duration-200 hover:bg-primary-700 active:scale-[0.98];
+        }
+        .btn-accent {
+          @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition duration-200 hover:bg-accent-700 active:scale-[0.98];
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition-duration: 0ms !important;
+        }
+      }
+    </style>
+    <meta property="og:image" content="https://bolt.new/static/og_default.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
+  </head>
+  <body class="bg-bg font-sans text-text antialiased">
+    <div class="relative mx-auto min-h-screen w-full max-w-[430px] bg-bg pb-28 md:border-x md:border-border">
+      <main class="px-5 pt-8">
+        <header class="flex items-center justify-between gap-3">
+          <h1 class="text-2xl font-semibold leading-[1.2] text-text">Minhas aulas</h1>
+          <button type="button" class="btn-accent shrink-0">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Nova aula
+          </button>
+        </header>
+
+        <button
+          id="btn-copiar"
+          type="button"
+          class="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-border bg-surface px-4 text-sm font-medium text-text transition duration-200 hover:border-accent hover:text-accent"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+          <span id="chip-texto" aria-live="polite">Copiar link de agendamento</span>
+        </button>
+
+        <div id="conteudo-lista">
+          <p id="resumo" class="mt-5 text-sm text-muted"></p>
+          <ul id="lista-aulas" class="mt-3 flex flex-col gap-3"></ul>
+        </div>
+
+        <section id="estado-vazio" class="hidden flex-col items-center px-2 pt-16 text-center" aria-labelledby="vazio-titulo">
+          <svg class="h-40 w-40" viewBox="0 0 160 160" fill="none" aria-hidden="true">
+            <circle cx="80" cy="80" r="72" fill="#EEF2FF" />
+            <rect x="38" y="46" width="84" height="76" rx="14" fill="#FFFFFF" stroke="#C7D2FE" stroke-width="2" />
+            <rect x="38" y="46" width="84" height="20" rx="10" fill="#4338CA" />
+            <rect x="52" y="78" width="22" height="6" rx="3" fill="#E5E7EB" />
+            <rect x="52" y="92" width="40" height="6" rx="3" fill="#E5E7EB" />
+            <rect x="52" y="106" width="30" height="6" rx="3" fill="#E5E7EB" />
+            <circle cx="112" cy="106" r="16" fill="#0E7490" />
+            <path d="M112 99v14M105 106h14" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+          <h2 id="vazio-titulo" class="mt-6 text-lg font-semibold leading-[1.2] text-text">Nenhuma aula cadastrada</h2>
+          <p class="mt-2 max-w-[300px] text-sm leading-[1.5] text-muted">
+            Cadastre sua primeira aula para começar a receber agendamentos
+          </p>
+          <button type="button" class="btn-primary mt-8 w-full">Cadastrar primeira aula</button>
+        </section>
+      </main>
+
+      <nav aria-label="Navegação principal" class="fixed bottom-0 left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-surface md:border-x">
+        <ul class="grid grid-cols-3">
+          <li>
+            <button type="button" aria-current="page" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-primary transition duration-200">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              Aulas
+            </button>
+          </li>
+          <li>
+            <button type="button" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-muted transition duration-200 hover:text-primary">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+              Agenda
+            </button>
+          </li>
+          <li>
+            <button type="button" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-muted transition duration-200 hover:text-primary">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21a8 8 0 0 1 16 0" />
+              </svg>
+              Perfil
+            </button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <script>
+      const ICONES = {
+        chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+        livro: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+        sparkles: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
+      };
+
+      const AULAS = [
+        { nome: 'Conversação individual', duracao: 50, preco: 90, icone: 'chat' },
+        { nome: 'Inglês para entrevistas', duracao: 60, preco: 120, icone: 'briefcase' },
+        { nome: 'Preparação IELTS', duracao: 90, preco: 150, icone: 'livro' },
+        { nome: 'Aula experimental', duracao: 30, preco: 40, icone: 'sparkles' },
+      ];
+
+      const formatarPreco = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      function svg(paths, classe) {
+        return `<svg class="${classe}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+      }
+
+      function renderizarCard(aula) {
+        return `
+          <li>
+            <button type="button" aria-label="Editar ${aula.nome}" class="group flex min-h-[44px] w-full items-center gap-4 rounded-2xl border border-border bg-surface p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-lg hover:shadow-primary/10">
+              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
+                ${svg(ICONES[aula.icone], 'h-6 w-6')}
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center justify-between gap-2">
+                  <span class="truncate font-semibold text-text">${aula.nome}</span>
+                  <span class="shrink-0 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-800">Ativa</span>
+                </span>
+                <span class="mt-1 flex items-center gap-1.5 text-sm text-muted">
+                  ${svg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 'h-4 w-4')}
+                  <span>${aula.duracao} min</span>
+                  <span aria-hidden="true">·</span>
+                  <span>${formatarPreco.format(aula.preco)}</span>
+                </span>
+              </span>
+              ${svg('<polyline points="9 18 15 12 9 6"/>', 'h-5 w-5 shrink-0 text-muted transition duration-200 group-hover:translate-x-0.5 group-hover:text-primary')}
+            </button>
+          </li>`;
+      }
+
+      function renderizarTela() {
+        const vazio = location.hash === '#vazio';
+        const quantidade = AULAS.length;
+
+        document.getElementById('conteudo-lista').classList.toggle('hidden', vazio);
+        document.getElementById('estado-vazio').classList.toggle('hidden', !vazio);
+        document.getElementById('estado-vazio').classList.toggle('flex', vazio);
+        if (vazio) return;
+
+        document.getElementById('resumo').textContent =
+          quantidade === 1 ? '1 tipo de aula ativo' : `${quantidade} tipos de aula ativos`;
+        document.getElementById('lista-aulas').innerHTML = AULAS.map(renderizarCard).join('');
+      }
+
+      const botaoCopiar = document.getElementById('btn-copiar');
+      const chipTexto = document.getElementById('chip-texto');
+      const TEXTO_CHIP = 'Copiar link de agendamento';
+      let temporizadorChip;
+
+      function mostrarTextoChip(mensagem) {
+        chipTexto.textContent = mensagem;
+        clearTimeout(temporizadorChip);
+        temporizadorChip = setTimeout(() => {
+          chipTexto.textContent = TEXTO_CHIP;
+        }, 2000);
+      }
+
+      botaoCopiar.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(location.href.split('#')[0]);
+          mostrarTextoChip('Link copiado!');
+        } catch {
+          mostrarTextoChip('Não foi possível copiar');
+        }
+      });
+
+      window.addEventListener('hashchange', renderizarTela);
+      renderizarTela();
+    </script>
+  </body>
+</html>
