@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Minhas aulas</title>
+    <title>EnglishFlow</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,224 +16,256 @@
         theme: {
           extend: {
             colors: {
-              primary: {
-                DEFAULT: '#4338CA',
-                50: '#EEF2FF',
-                700: '#3730A3',
-              },
-              accent: {
-                DEFAULT: '#0E7490',
-                700: '#155E75',
-              },
-              success: {
-                50: '#DCFCE7',
-                800: '#166534',
-              },
-              error: {
-                50: '#FEF2F2',
-                700: '#B91C1C',
-              },
+              primary: { DEFAULT: '#4338CA', 50: '#EEF2FF', 700: '#3730A3' },
+              accent: { DEFAULT: '#0E7490', 700: '#155E75' },
+              success: { 50: '#DCFCE7', 800: '#166534' },
+              error: { 50: '#FEF2F2', 700: '#B91C1C' },
               bg: '#F8F9FA',
               surface: '#FFFFFF',
               text: '#111827',
               muted: '#4B5563',
               border: '#E5E7EB',
+              warning: { 50: '#FFFBEB', 700: '#B45309' },
             },
-            fontFamily: {
-              sans: ['Inter', 'system-ui', 'sans-serif'],
-            },
+            fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
           },
         },
       };
     </script>
     <style type="text/tailwindcss">
       @layer base {
-        :focus-visible {
-          @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-bg;
-        }
+        :focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-bg; }
+        body { @apply bg-bg text-text antialiased; }
       }
       @layer components {
-        .btn-primary {
-          @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition duration-200 hover:bg-primary-700 active:scale-[0.98];
-        }
-        .btn-accent {
-          @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition duration-200 hover:bg-accent-700 active:scale-[0.98];
-        }
-        .btn-secundario {
-          @apply inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-border bg-surface text-sm font-semibold text-text transition duration-200 hover:border-primary hover:text-primary;
-        }
-        .campo {
-          @apply mt-2 min-h-[44px] w-full rounded-xl border border-border bg-surface px-4 text-base text-text transition duration-200 placeholder:text-muted hover:border-primary/50 focus:border-primary;
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          transition-duration: 0ms !important;
-        }
+        .btn-primary { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition duration-200 hover:bg-primary-700 active:scale-[0.98]; }
+        .btn-accent { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition duration-200 hover:bg-accent-700 active:scale-[0.98]; }
+        .btn-secundario { @apply inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text transition duration-200 hover:border-primary hover:text-primary; }
+        .btn-ghost { @apply inline-flex min-h-[44px] items-center justify-center rounded-xl border border-border bg-surface px-3 text-sm font-medium text-text transition duration-200 hover:border-primary hover:text-primary; }
+        .campo { @apply mt-2 min-h-[44px] w-full rounded-xl border border-border bg-surface px-4 text-base text-text transition duration-200 placeholder:text-muted hover:border-primary/50 focus:border-primary; }
+        .card { @apply rounded-2xl border border-border bg-surface p-4 shadow-sm; }
       }
     </style>
   </head>
-  <body class="bg-bg font-sans text-text antialiased">
-    <div class="relative mx-auto min-h-screen w-full max-w-[430px] bg-bg pb-28 md:border-x md:border-border">
+  <body>
+    <div class="mx-auto min-h-screen w-full max-w-[460px] bg-bg pb-8">
       <main class="px-5 pt-8">
-        <section id="tela-lista">
-          <header class="flex items-center justify-between gap-3">
-            <h1 class="text-2xl font-semibold leading-[1.2] text-text">Minhas aulas</h1>
-            <a href="#nova-aula" class="btn-accent shrink-0">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Nova aula
-            </a>
-          </header>
-
-          <button
-            id="btn-copiar"
-            type="button"
-            class="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-border bg-surface px-4 text-sm font-medium text-text transition duration-200 hover:border-accent hover:text-accent"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            <span id="chip-texto" aria-live="polite">Copiar link de agendamento</span>
-          </button>
-
-          <p id="resumo" class="mt-5 text-sm text-muted" hidden></p>
-          <p id="lista-status" class="mt-5 text-sm text-muted" role="status" hidden></p>
-
-          <div id="erro-lista" class="mt-5 rounded-2xl border border-border bg-surface p-5" hidden>
-            <p class="text-sm text-error-700">Não foi possível carregar suas aulas. Verifique sua conexão.</p>
-            <button id="tentar-novamente" type="button" class="btn-primary mt-4 w-full">Tentar novamente</button>
+        <section id="login-view" class="space-y-6">
+          <div class="rounded-[28px] bg-gradient-to-br from-primary to-accent p-6 text-white shadow-lg shadow-primary/20">
+            <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/90">
+              EnglishFlow
+            </div>
+            <h1 class="text-3xl font-extrabold leading-tight">Agende e gerencie aulas de inglês com facilidade.</h1>
+            <p class="mt-3 text-sm text-white/80">Acesso rápido para professor e aluno em uma experiência mobile-first.</p>
           </div>
 
-          <ul id="lista-aulas" class="mt-3 flex flex-col gap-3"></ul>
+          <div class="space-y-3">
+            <button type="button" data-role="professor" class="role-button w-full rounded-2xl border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lg hover:shadow-primary/10">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs uppercase tracking-[0.12em] text-muted">Professor</p>
+                  <h2 class="mt-2 text-xl font-bold text-text">Registrar aulas e agenda</h2>
+                </div>
+                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary">
+                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg>
+                </div>
+              </div>
+            </button>
 
-          <div id="estado-vazio" hidden>
-            <div class="flex flex-col items-center px-2 pt-16 text-center">
-              <svg class="h-40 w-40" viewBox="0 0 160 160" fill="none" aria-hidden="true">
-                <circle cx="80" cy="80" r="72" fill="#EEF2FF" />
-                <rect x="38" y="46" width="84" height="76" rx="14" fill="#FFFFFF" stroke="#C7D2FE" stroke-width="2" />
-                <rect x="38" y="46" width="84" height="20" rx="10" fill="#4338CA" />
-                <rect x="52" y="78" width="22" height="6" rx="3" fill="#E5E7EB" />
-                <rect x="52" y="92" width="40" height="6" rx="3" fill="#E5E7EB" />
-                <rect x="52" y="106" width="30" height="6" rx="3" fill="#E5E7EB" />
-                <circle cx="112" cy="106" r="16" fill="#0E7490" />
-                <path d="M112 99v14M105 106h14" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-              </svg>
-              <h2 class="mt-6 text-lg font-semibold leading-[1.2] text-text">Nenhuma aula cadastrada</h2>
-              <p class="mt-2 max-w-[300px] text-sm leading-[1.5] text-muted">
-                Cadastre sua primeira aula para começar a receber agendamentos
-              </p>
-              <a href="#nova-aula" class="btn-primary mt-8 w-full">Cadastrar primeira aula</a>
-            </div>
+            <button type="button" data-role="aluno" class="role-button w-full rounded-2xl border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-accent/10">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs uppercase tracking-[0.12em] text-muted">Aluno</p>
+                  <h2 class="mt-2 text-xl font-bold text-text">Contratar aulas e ver horários</h2>
+                </div>
+                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+              </div>
+            </button>
           </div>
         </section>
 
-        <section id="tela-form" class="pt-2" aria-labelledby="form-titulo" hidden>
-          <header class="flex items-center gap-2">
-            <a href="#" aria-label="Voltar para Minhas aulas" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text transition duration-200 hover:bg-surface">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </a>
-            <h1 id="form-titulo" tabindex="-1" class="text-2xl font-semibold leading-[1.2] text-text focus:outline-none">Nova aula</h1>
+        <section id="professor-view" class="hidden space-y-6">
+          <header class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-[0.12em] text-muted">Professor</p>
+              <h1 class="text-2xl font-bold">Mariana Duarte</h1>
+              <p class="text-sm text-muted">Professora de inglês</p>
+            </div>
+            <button type="button" id="logout-professor" class="btn-ghost">Sair</button>
           </header>
-          <p class="mt-3 text-sm leading-[1.5] text-muted">
-            Defina o nome, a duração e o preço. Seus alunos verão essa aula ao agendar.
-          </p>
 
-          <form id="form-aula" novalidate class="mt-8 flex flex-col gap-6">
+          <div class="card">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold">Aulas oferecidas</h2>
+              <span id="total-aulas-professor" class="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary">0</span>
+            </div>
+            <div id="lista-aulas-professor" class="mt-4 space-y-3"></div>
+          </div>
+
+          <div class="card">
+            <h2 class="text-lg font-semibold">Cadastrar nova aula</h2>
+            <form id="form-aula-professor" class="mt-4 space-y-4">
+              <div>
+                <label for="professor-nome" class="text-sm font-medium text-text">Nome da aula</label>
+                <input id="professor-nome" name="nome" type="text" class="campo" placeholder="Ex.: Conversação individual" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="professor-duracao" class="text-sm font-medium text-text">Duração</label>
+                  <input id="professor-duracao" name="duracao" type="number" min="15" max="120" step="5" class="campo" placeholder="50" />
+                </div>
+                <div>
+                  <label for="professor-preco" class="text-sm font-medium text-text">Preço</label>
+                  <input id="professor-preco" name="preco" type="number" min="1" step="1" class="campo" placeholder="4900" />
+                </div>
+              </div>
+              <button type="submit" class="btn-primary w-full">Salvar aula</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Disponibilidade semanal</h2>
+                <p class="mt-1 text-sm text-muted">Defina os dias e horários em que seus alunos podem marcar aulas.</p>
+              </div>
+              <button type="button" id="abrir-disponibilidade-card" class="btn-accent shrink-0">Definir</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Aulas agendadas</h2>
+                <p class="mt-1 text-sm text-muted">Consulte seus alunos e os próximos horários.</p>
+              </div>
+              <span id="total-agendadas-professor" class="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary">0</span>
+            </div>
+            <button type="button" id="abrir-agenda-professor" class="btn-primary mt-4 w-full">Ver aulas agendadas</button>
+          </div>
+        </section>
+
+        <section id="availability-view" class="hidden space-y-6">
+          <header class="flex items-center gap-3">
+            <button type="button" id="voltar-professor" class="btn-ghost shrink-0" aria-label="Voltar ao painel da professora">Voltar</button>
             <div>
-              <label for="campo-nome" class="text-sm font-medium text-text">Nome da aula</label>
-              <input
-                id="campo-nome"
-                name="nome"
-                type="text"
-                maxlength="60"
-                autocomplete="off"
-                placeholder="Ex.: Conversação individual"
-                aria-describedby="erro-nome"
-                class="campo"
-              />
-              <p id="erro-nome" class="mt-1.5 text-sm text-error-700" hidden></p>
+              <p class="text-xs uppercase tracking-[0.12em] text-muted">Mariana Duarte</p>
+              <h1 class="text-2xl font-bold">Disponibilidade semanal</h1>
             </div>
+          </header>
 
+          <div class="card">
+            <p class="text-sm leading-6 text-muted">Adicione uma ou mais faixas por dia. Os horários serão oferecidos aos alunos nos próximos 14 dias, conforme a duração da aula.</p>
+            <form id="form-disponibilidade" class="mt-5 space-y-4">
+              <div>
+                <label for="disponibilidade-dia" class="text-sm font-medium text-text">Dia da semana</label>
+                <select id="disponibilidade-dia" name="weekday" class="campo" required>
+                  <option value="1">Segunda-feira</option>
+                  <option value="2">Terça-feira</option>
+                  <option value="3">Quarta-feira</option>
+                  <option value="4">Quinta-feira</option>
+                  <option value="5">Sexta-feira</option>
+                  <option value="6">Sábado</option>
+                  <option value="0">Domingo</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="disponibilidade-inicio" class="text-sm font-medium text-text">A partir de</label>
+                  <input id="disponibilidade-inicio" name="start" type="time" step="900" value="09:00" class="campo" required />
+                </div>
+                <div>
+                  <label for="disponibilidade-fim" class="text-sm font-medium text-text">Até</label>
+                  <input id="disponibilidade-fim" name="end" type="time" step="900" value="12:00" class="campo" required />
+                </div>
+              </div>
+              <p id="erro-disponibilidade" class="rounded-xl bg-error-50 p-3 text-sm text-error-700" role="alert" hidden></p>
+              <button type="submit" class="btn-primary w-full">Adicionar faixa de horário</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold">Faixas cadastradas</h2>
+              <span class="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary">Semanal</span>
+            </div>
+            <div id="lista-disponibilidade" class="mt-4 space-y-3"></div>
+          </div>
+        </section>
+
+        <section id="agenda-view" class="hidden space-y-6">
+          <header class="flex items-center gap-3">
+            <button type="button" id="voltar-painel-agenda" class="btn-ghost shrink-0" aria-label="Voltar ao painel da professora">Voltar</button>
             <div>
-              <label for="campo-duracao" class="text-sm font-medium text-text">Duração (minutos)</label>
-              <input
-                id="campo-duracao"
-                name="duracao"
-                type="text"
-                inputmode="numeric"
-                maxlength="3"
-                autocomplete="off"
-                placeholder="Ex.: 50"
-                aria-describedby="ajuda-duracao erro-duracao"
-                class="campo"
-              />
-              <p id="ajuda-duracao" class="mt-1.5 text-sm text-muted">Entre 15 e 120 minutos.</p>
-              <p id="erro-duracao" class="mt-1.5 text-sm text-error-700" hidden></p>
+              <p class="text-xs uppercase tracking-[0.12em] text-muted">Mariana Duarte</p>
+              <h1 class="text-2xl font-bold">Aulas agendadas</h1>
             </div>
+          </header>
+          <p class="text-sm text-muted">Reservas confirmadas, organizadas por data e horário.</p>
+          <div id="agenda-professor" class="space-y-3"></div>
+        </section>
 
+        <section id="aluno-view" class="hidden space-y-6">
+          <header class="flex items-center justify-between gap-3">
             <div>
-              <label for="campo-preco" class="text-sm font-medium text-text">Preço</label>
-              <input
-                id="campo-preco"
-                name="preco"
-                type="text"
-                inputmode="numeric"
-                autocomplete="off"
-                placeholder="R$ 0,00"
-                aria-describedby="ajuda-preco erro-preco"
-                class="campo"
-              />
-              <p id="ajuda-preco" class="mt-1.5 text-sm text-muted">Digite só os números. O valor é formatado sozinho.</p>
-              <p id="erro-preco" class="mt-1.5 text-sm text-error-700" hidden></p>
+              <p class="text-xs uppercase tracking-[0.12em] text-muted">Aluno</p>
+              <h1 class="text-2xl font-bold">Agendar aula</h1>
+              <p class="text-sm text-muted">com Mariana Duarte</p>
             </div>
+            <button type="button" id="logout-aluno" class="btn-ghost">Sair</button>
+          </header>
 
-            <p id="erro-geral" class="rounded-xl bg-error-50 p-4 text-sm text-error-700" role="alert" hidden></p>
+          <div class="card">
+            <h2 class="text-lg font-semibold">Escolha sua aula</h2>
+            <p class="mt-1 text-sm text-muted">Toque em uma opção para ver os horários disponíveis.</p>
+            <div id="lista-tipos-aula" class="mt-4 space-y-3" role="group" aria-label="Tipos de aula"></div>
+          </div>
 
-            <div class="flex flex-col gap-3">
-              <button id="btn-salvar" type="submit" class="btn-primary w-full">Salvar aula</button>
-              <a href="#" class="btn-secundario">Cancelar</a>
+          <div class="card">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Horários disponíveis</h2>
+                <p class="mt-1 text-sm text-muted">Escolha um dia para ver os horários.</p>
+              </div>
+              <span id="total-horarios" class="shrink-0 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">0 dias</span>
             </div>
-          </form>
+            <div id="lista-dias-disponiveis" class="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Dias com horários disponíveis"></div>
+            <div id="lista-horarios" class="mt-3 grid grid-cols-3 gap-2"></div>
+          </div>
+
+          <div class="card">
+            <h2 class="text-lg font-semibold">Reservar aula</h2>
+            <form id="form-agenda-aluno" class="mt-4 space-y-4">
+              <div>
+                <label for="aluno-nome" class="text-sm font-medium text-text">Seu nome</label>
+                <input id="aluno-nome" name="nome" type="text" class="campo" placeholder="Ex.: Maria Souza" />
+              </div>
+              <div>
+                <label for="aluno-contato" class="text-sm font-medium text-text">E-mail ou WhatsApp</label>
+                <input id="aluno-contato" name="contato" type="text" class="campo" placeholder="Ex.: maria@email.com" />
+                <p id="erro-contato" class="mt-1 text-sm text-error-700" role="alert" hidden></p>
+              </div>
+              <div id="resumo-slot-selecionado" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-700 hidden"></div>
+              <button type="submit" class="btn-accent w-full">Confirmar agendamento</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold">Minhas aulas</h2>
+              <span id="total-minhas-aulas" class="rounded-full bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-800">0</span>
+            </div>
+            <div id="lista-minhas-aulas" class="mt-4 space-y-3"></div>
+          </div>
         </section>
       </main>
-
-      <nav id="navegacao" aria-label="Navegação principal" class="fixed bottom-0 left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-surface md:border-x">
-        <ul class="grid grid-cols-3">
-          <li>
-            <button type="button" aria-current="page" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-primary transition duration-200">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg>
-              Aulas
-            </button>
-          </li>
-          <li>
-            <button type="button" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-muted transition duration-200 hover:text-primary">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-              </svg>
-              Agenda
-            </button>
-          </li>
-          <li>
-            <button type="button" class="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-xs font-medium text-muted transition duration-200 hover:text-primary">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 21a8 8 0 0 1 16 0" />
-              </svg>
-              Perfil
-            </button>
-          </li>
-        </ul>
-      </nav>
     </div>
+
+    <dialog id="booking-dialog" class="w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 backdrop:bg-black/40">
+      <div id="booking-dialog-content" class="p-5"></div>
+    </dialog>
 
     <script type="module" src="/main.js"></script>
   </body>

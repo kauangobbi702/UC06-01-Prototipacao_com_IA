@@ -3,6 +3,20 @@
 > **Exercício 01** · Documento de requisitos gerado por IA, validado por humanos.
 > Caso de referência: *Serena* (CRUD de serviços + agendamento online), adaptado para aulas de inglês online.
 
+## Configuração inicial
+
+1. Execute `npm install`.
+2. Execute `npm run dev`.
+3. Abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`).
+
+O protótipo funciona sem credenciais do Supabase: aulas, horários e agendamentos ficam salvos no `localStorage` do navegador. Os dados não são compartilhados entre dispositivos ou navegadores. A professora demonstrativa é Mariana Duarte.
+
+No painel da professora, acesse **Disponibilidade semanal** para adicionar ou remover faixas por dia da semana. O sistema oferece horários em blocos de 30 minutos pelos próximos 14 dias, considerando a duração da aula e evitando conflitos com reservas existentes. No fluxo do aluno, os dias aparecem em uma grade de botões grandes e os horários são exibidos somente para o dia escolhido.
+
+As reservas da professora ficam em uma tela separada, acessível pelo botão **Ver aulas agendadas** no painel.
+
+O fluxo do aluno permite confirmar uma reserva e consultar, cancelar ou reagendar usando o mesmo e-mail/WhatsApp informado no agendamento. Cancelamentos e reagendamentos ficam disponíveis somente até 12 horas antes da aula. A confirmação aparece na tela; envio de e-mail e notificações externas ainda dependem de integração com backend.
+
 ---
 
 ## Sumário
