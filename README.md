@@ -3,19 +3,50 @@
 > **Exercício 01** · Documento de requisitos gerado por IA, validado por humanos.
 > Caso de referência: *Serena* (CRUD de serviços + agendamento online), adaptado para aulas de inglês online.
 
-## Configuração inicial
+## Configuração e execução
 
-1. Execute `npm install`.
-2. Execute `npm run dev`.
-3. Abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`).
+1. Em [supabase.com](https://supabase.com), crie um projeto, defina nome e senha fortes para o banco e escolha a região São Paulo quando disponível.
+2. Em **Project Settings → API**, copie a Project URL e a chave **anon/publishable**. Não copie `service_role` para o navegador.
+3. Na raiz do projeto, copie `.env.example` para `.env` (`Copy-Item .env.example .env` no PowerShell) e informe apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para o front-end.
+4. No **SQL Editor** do Supabase, execute `supabase/migrations/20261117220000_booking_backend.sql`. Esse arquivo versionado é o schema executável do projeto e cria tabelas, constraints, índices, RLS, views, triggers e RPCs.
+5. Execute `npm install` e `npm run dev`; abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`). A dependência `@supabase/supabase-js` já está declarada em `package.json`.
+6. Configure os redirect URLs do Supabase Auth para desenvolvimento e produção. Se a confirmação de e-mail estiver ativa, confirme a conta da professora antes de entrar.
 
-O protótipo funciona sem credenciais do Supabase: aulas, horários e agendamentos ficam salvos no `localStorage` do navegador. Os dados não são compartilhados entre dispositivos ou navegadores. A professora demonstrativa é Mariana Duarte.
+O app não usa mais `localStorage` como banco de dados. Sem URL e chave anon válidas, as telas informam a configuração ausente e não simulam gravações locais. No primeiro cadastro da professora, o perfil é criado em `perfis`; o nome inicial sugerido é Mariana Duarte. Ela cadastra suas aulas, disponibilidade e bloqueios e pode compartilhar o link público gerado no painel.
 
-No painel da professora, acesse **Disponibilidade semanal** para adicionar ou remover faixas por dia da semana. O sistema oferece horários em blocos de 30 minutos pelos próximos 14 dias, considerando a duração da aula e evitando conflitos com reservas existentes. No fluxo do aluno, os dias aparecem em uma grade de botões grandes e os horários são exibidos somente para o dia escolhido.
+O cliente Supabase está em `supabase.js` (JavaScript, equivalente ao `lib/supabase.ts` do roteiro de referência) e cria o cliente com `createClient` usando somente URL/chave pública. `vite.config.js` aceita os nomes `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; somente esses dois valores são enviados ao bundle. A URL é validada para exigir HTTPS. O `.gitignore` ignora `.env` e arquivos `.env.*`, mantendo `.env.example` versionável.
 
-As reservas da professora ficam em uma tela separada, acessível pelo botão **Ver aulas agendadas** no painel.
+O fluxo do aluno usa a identidade demonstrativa fixa **Rafael Nogueira** (`rafael.nogueira@example.com`), sem conta Supabase. O texto de consentimento exibido corresponde à versão `agendamento-v1`. O token de cada agendamento é guardado apenas no `localStorage` do navegador usado para reservar, para habilitar consulta, cancelamento, reagendamento e exclusão de dados nesse navegador. Para publicação real, implemente a entrega segura do token ao aluno (por exemplo, em uma mensagem transacional).
 
-O fluxo do aluno permite confirmar uma reserva e consultar, cancelar ou reagendar usando o mesmo e-mail/WhatsApp informado no agendamento. Cancelamentos e reagendamentos ficam disponíveis somente até 12 horas antes da aula. A confirmação aparece na tela; envio de e-mail e notificações externas ainda dependem de integração com backend.
+No painel da professora, cadastre aulas, defina disponibilidade semanal, bloqueie datas, configure a antecedência de alteração (0 a 72 horas) e gerencie os agendamentos. O fluxo público consulta a disponibilidade no banco em blocos de 30 minutos pelos próximos 14 dias; a constraint de exclusão impede conflitos mesmo em reservas concorrentes.
+
+## Backend Supabase (PostgreSQL 15)
+
+A migration `supabase/migrations/20261117220000_booking_backend.sql` define o modelo multi-professora, constraints de agendamento sem sobreposição, RLS e RPCs públicas limitadas para alunos sem conta. Ela também revoga os grants da tabela legada `lesson_types`, que não possui proprietário.
+
+O token retornado ao confirmar a reserva permite ao aluno consultar seus dados (`consultar_agendamento`), cancelar, reagendar ou solicitar exclusão. O token deve ser entregue ao aluno com segurança e não deve ser registrado em logs.
+
+O front-end usa exclusivamente a URL HTTPS e a chave anon/publishable. `SUPABASE_SERVICE_ROLE_KEY`, tokens administrativos e `SUPABASE_DB_URL` jamais devem ser colocados em variáveis `VITE_` ou no navegador. A migration cria uma fila `notificacoes`; o envio de e-mail/WhatsApp exige um worker confiável no servidor, que ainda não faz parte deste protótipo. Confirme também no painel Supabase a frequência e a retenção dos backups do plano.
+
+### Aviso temporário do `npm audit`
+
+O Vite foi fixado em `6.4.6`, que corrige os advisories próprios do Vite e usa `esbuild` corrigido. Em 17/11/2026, o registry ainda não publica uma versão corrigida de `picomatch` para o advisory [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf). Por isso, `npm audit` reporta quatro entradas altas para o mesmo problema transitivo (`picomatch`, `fdir`, `tinyglobby` e Vite); `npm audit --omit=dev` confirma zero vulnerabilidades nas dependências de execução do app. Não use `npm audit fix --force`: a sugestão de downgrade para Vite 6.2.7 reabre advisories corrigidos no Vite. Mantenha o servidor de desenvolvimento acessível apenas em `localhost` e reavalie após a publicação de uma versão corrigida de `picomatch`.
+
+As credenciais e o acesso ao projeto Supabase não estão configurados neste workspace. Por isso, o build do front-end pode ser validado aqui, mas a migration e os fluxos de Auth/RLS/RPC precisam ser aplicados e testados no projeto Supabase do responsável antes de considerar o sistema pronto para produção.
+
+## Checklist de CRUD e entrega
+
+Faça este teste com o app conectado ao seu projeto Supabase e autenticado como professora:
+
+1. No painel, cadastre três aulas: **Conversação individual** (50 min, R$ 49,00), **Speaking for travel** (30 min, R$ 39,00) e **IELTS prep** (60 min, R$ 79,00).
+2. Confirme que as três aparecem no painel e no **Table Editor → public.aulas**, associadas ao perfil da professora.
+3. Edite uma aula no painel (por exemplo, altere o preço da aula IELTS) e confirme a alteração na lista e no Table Editor.
+4. Exclua uma das aulas sem agendamentos e confirme que duas permanecem. A exclusão de aulas com agendamentos relacionados é bloqueada pelo banco.
+5. Para validar o fluxo completo, cadastre uma faixa semanal, abra o link público, agende com o aluno demonstrativo, confira a linha em `public.agendamentos` pelo Table Editor e teste reagendamento/cancelamento dentro do prazo configurado.
+
+Não faça inserts anônimos diretamente em `public.aulas`: a tabela é protegida por RLS e exige a identidade autenticada da professora. Valide o CRUD pela interface e use o Table Editor apenas para conferir os registros.
+
+Antes da submissão, confirme: migration aplicada sem erro; RLS/policies visíveis no Supabase; CRUD e agendamento testados; `npm run build` aprovado; `.env` não aparece no Git. Envie o link do repositório e o link do protótipo publicado (ou do projeto Supabase, se solicitado), nunca credenciais, tokens ou chave `service_role`.
 
 ---
 

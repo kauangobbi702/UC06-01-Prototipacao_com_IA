@@ -1,11 +1,13 @@
-const STORAGE_KEYS = {
-  lessons: 'englishflow-lessons',
-  bookings: 'englishflow-bookings',
-  availability: 'englishflow-weekly-availability',
-  activeStudentContact: 'englishflow-active-student-contact',
-};
-const PROFESSORA = 'Mariana Duarte';
-const DIAS_SEMANA = [
+import { supabase, supabaseConfigError } from './supabase.js';
+
+const TIME_ZONE = 'America/Sao_Paulo';
+const DEFAULT_TEACHER_SLUG = 'mariana-duarte';
+const STUDENT = Object.freeze({
+  name: 'Rafael Nogueira',
+  email: 'rafael.nogueira@example.com',
+});
+const TOKEN_STORAGE_KEY = 'englishflow-booking-tokens';
+const WEEKDAYS = [
   { value: 1, label: 'Segunda-feira' },
   { value: 2, label: 'Terça-feira' },
   { value: 3, label: 'Quarta-feira' },
@@ -17,870 +19,1180 @@ const DIAS_SEMANA = [
 
 const state = {
   view: 'login',
+  authMode: 'login',
+  user: null,
+  teacher: null,
+  publicTeacher: null,
+  lessons: [],
+  availability: [],
+  blocks: [],
+  teacherBookings: [],
+  studentBookings: [],
+  slots: [],
   selectedLessonId: '',
   selectedDate: '',
   selectedSlotId: '',
-  editingBookingId: '',
+  editingBookingToken: '',
 };
 
-const loginView = document.querySelector('#login-view');
-const professorView = document.querySelector('#professor-view');
-const availabilityView = document.querySelector('#availability-view');
-const agendaView = document.querySelector('#agenda-view');
-const alunoView = document.querySelector('#aluno-view');
-const totalAulasProfessor = document.querySelector('#total-aulas-professor');
-const listaAulasProfessor = document.querySelector('#lista-aulas-professor');
-const totalAgendadasProfessor = document.querySelector('#total-agendadas-professor');
-const agendaProfessor = document.querySelector('#agenda-professor');
-const formAulaProfessor = document.querySelector('#form-aula-professor');
-const listaTiposAula = document.querySelector('#lista-tipos-aula');
-const listaDiasDisponiveis = document.querySelector('#lista-dias-disponiveis');
-const listaHorarios = document.querySelector('#lista-horarios');
-const formAgendaAluno = document.querySelector('#form-agenda-aluno');
-const resumoSlotSelecionado = document.querySelector('#resumo-slot-selecionado');
-const listaMinhasAulas = document.querySelector('#lista-minhas-aulas');
-const totalMinhasAulas = document.querySelector('#total-minhas-aulas');
-const totalHorarios = document.querySelector('#total-horarios');
-const bookingDialog = document.querySelector('#booking-dialog');
-const bookingDialogContent = document.querySelector('#booking-dialog-content');
-const campoContatoAluno = document.querySelector('#aluno-contato');
-const erroContatoAluno = document.querySelector('#erro-contato');
-const formDisponibilidade = document.querySelector('#form-disponibilidade');
-const listaDisponibilidade = document.querySelector('#lista-disponibilidade');
-const erroDisponibilidade = document.querySelector('#erro-disponibilidade');
+const $ = (selector) => document.querySelector(selector);
+const views = ['login', 'professor', 'availability', 'agenda', 'aluno']
+  .map((name) => $(`#${name === 'aluno' ? 'aluno' : name}-view`));
+const appStatus = $('#app-status');
+const formTeacherAuth = $('#form-professor-auth');
+const teacherNameField = $('#teacher-name-field');
+const teacherAuthError = $('#teacher-auth-error');
+const formLesson = $('#form-aula-professor');
+const lessonFormTitle = $('#lesson-form-title');
+const lessonIdField = $('#lesson-id');
+const lessonNameField = $('#professor-nome');
+const lessonDurationField = $('#professor-duracao');
+const lessonPriceField = $('#professor-preco');
+const lessonFormSubmit = $('#lesson-form-submit');
+const lessonFormCancel = $('#lesson-form-cancel');
+const lessonList = $('#lista-aulas-professor');
+const availabilityForm = $('#form-disponibilidade');
+const availabilityList = $('#lista-disponibilidade');
+const availabilityError = $('#erro-disponibilidade');
+const blockForm = $('#form-bloqueio');
+const blockDateField = $('#bloqueio-data');
+const blockError = $('#erro-bloqueio');
+const blockList = $('#lista-bloqueios');
+const agendaList = $('#agenda-professor');
+const lessonTypes = $('#lista-tipos-aula');
+const availableDays = $('#lista-dias-disponiveis');
+const availableTimes = $('#lista-horarios');
+const studentForm = $('#form-agenda-aluno');
+const selectedSlotSummary = $('#resumo-slot-selecionado');
+const studentBookingsList = $('#lista-minhas-aulas');
+const totalStudentBookings = $('#total-minhas-aulas');
+const bookingDialog = $('#booking-dialog');
+const bookingDialogContent = $('#booking-dialog-content');
+const teacherSignupToggle = $('#toggle-teacher-signup');
 
-function formatarPreco(centavos) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(centavos / 100);
+function showStatus(message, isError = false) {
+  appStatus.textContent = message;
+  appStatus.classList.toggle('bg-error-50', isError);
+  appStatus.classList.toggle('text-error-700', isError);
+  appStatus.classList.toggle('bg-warning-50', !isError);
+  appStatus.classList.toggle('text-warning-700', !isError);
+  appStatus.hidden = !message;
 }
 
-function gerarId(prefix = 'id') {
-  if (globalThis.crypto?.randomUUID) {
-    return `${prefix}-${crypto.randomUUID()}`;
+function errorMessage(error) {
+  const message = error?.message || 'Ocorreu um erro inesperado.';
+  if (/hor.rio.*n.o dispon.vel|novo hor.rio n.o dispon.vel/i.test(message)) {
+    return 'Esse horário não está mais disponível. Atualize a lista e escolha outro.';
   }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (/prazo.*encerrado/i.test(message)) {
+    return 'O prazo para alterar esta aula já foi encerrado.';
+  }
+  if (/duplicate key|unique constraint/i.test(message)) {
+    return 'Esse registro já existe. Confira os dados e tente novamente.';
+  }
+  if (/foreign key|violates.*constraint/i.test(message)) {
+    return 'Não foi possível concluir porque este item está relacionado a um agendamento.';
+  }
+  return message;
 }
 
-function obterDataISO(diasAFrente = 0) {
-  const data = new Date();
-  data.setHours(0, 0, 0, 0);
-  data.setDate(data.getDate() + diasAFrente);
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const dia = String(data.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+function ensureDatabase() {
+  if (supabase) return true;
+  showStatus(supabaseConfigError, true);
+  return false;
 }
 
-function formatarDiaSemana(dataISO) {
-  return new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(`${dataISO}T12:00:00`));
-}
-
-function formatarDataCurta(dataISO) {
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(`${dataISO}T12:00:00`));
-}
-
-function formatarDataLonga(dataISO) {
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${dataISO}T12:00:00`));
-}
-
-function escaparHtml(valor) {
-  return String(valor).replace(/[&<>"']/g, (caractere) => ({
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#39;',
-  })[caractere]);
+  })[character]);
 }
 
-function contatoValido(contato) {
-  const valor = contato.trim();
-  const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
-  const digitos = valor.replace(/\D/g, '');
-  return emailValido || (digitos.length >= 10 && digitos.length <= 15);
+function formatPrice(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    .format(Number(value));
 }
 
-function dentroDoPrazoMinimo(slot) {
-  const horario = new Date(`${slot.date}T${slot.time}:00`);
-  return horario.getTime() - Date.now() >= 12 * 60 * 60 * 1000;
+function localDateParts(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
 }
 
-function horariosBase() {
-  const horarios = [];
-  [1, 2, 3, 4, 5].forEach((weekday) => {
-    horarios.push(
-      { id: gerarId('availability'), weekday, start: '09:00', end: '12:00' },
-      { id: gerarId('availability'), weekday, start: '14:00', end: '18:00' },
-    );
-  });
-  return horarios;
+function localDateTimeParts(value) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(value));
+  return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
 }
 
-function lerStorage(chave, fallback) {
+function dateIso(date = new Date()) {
+  const parts = localDateParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatLongDate(value) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00-03:00`) : new Date(value);
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: TIME_ZONE,
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatShortDate(value) {
+  const date = new Date(`${value}T12:00:00-03:00`);
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, day: '2-digit', month: 'short' }).format(date);
+}
+
+function formatWeekday(value) {
+  const date = new Date(`${value}T12:00:00-03:00`);
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, weekday: 'long' }).format(date);
+}
+
+function getLocalDateTime(value) {
+  const parts = localDateTimeParts(value);
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+function getErrorText(error) {
+  return errorMessage(error);
+}
+
+function readBookingTokens() {
   try {
-    const valor = localStorage.getItem(chave);
-    return valor ? JSON.parse(valor) : fallback;
+    const stored = JSON.parse(localStorage.getItem(TOKEN_STORAGE_KEY) || '{}');
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
   } catch {
-    return fallback;
+    throw new Error('Não foi possível ler os tokens de agendamento salvos neste navegador.');
   }
 }
 
-function salvarStorage(chave, valor) {
-  localStorage.setItem(chave, JSON.stringify(valor));
+function saveBookingToken(slug, token) {
+  const stored = readBookingTokens();
+  const tokens = Array.isArray(stored[slug]) ? stored[slug] : [];
+  if (!tokens.includes(token)) tokens.push(token);
+  stored[slug] = tokens;
+  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(stored));
 }
 
-function criarDadosBase() {
-  const lessons = [
-    { id: 'lesson-1', name: 'Conversação individual', duration_minutes: 50, price_cents: 4900, created_at: new Date().toISOString() },
-    { id: 'lesson-2', name: 'Speaking for travel', duration_minutes: 30, price_cents: 3900, created_at: new Date().toISOString() },
-    { id: 'lesson-3', name: 'IELTS prep', duration_minutes: 60, price_cents: 7900, created_at: new Date().toISOString() },
-  ];
-  const bookings = [];
-
-  salvarStorage(STORAGE_KEYS.lessons, lessons);
-  salvarStorage(STORAGE_KEYS.availability, horariosBase());
-  salvarStorage(STORAGE_KEYS.bookings, bookings);
+function removeBookingToken(slug, token) {
+  const stored = readBookingTokens();
+  stored[slug] = (Array.isArray(stored[slug]) ? stored[slug] : []).filter((item) => item !== token);
+  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(stored));
 }
 
-function obterLessons() {
-  const lessons = lerStorage(STORAGE_KEYS.lessons, []);
-  if (!lessons.length) {
-    criarDadosBase();
-    return lerStorage(STORAGE_KEYS.lessons, []);
-  }
-  return lessons;
+function teacherId() {
+  if (!state.user?.id) throw new Error('Sessão da professora encerrada. Entre novamente.');
+  return state.user.id;
 }
 
-function obterBookings() {
-  return lerStorage(STORAGE_KEYS.bookings, []);
+function resetLessonForm() {
+  formLesson.reset();
+  lessonIdField.value = '';
+  lessonFormTitle.textContent = 'Cadastrar nova aula';
+  lessonFormSubmit.textContent = 'Salvar aula';
+  lessonFormCancel.classList.add('hidden');
 }
 
-function obterAvailability() {
-  const horarios = lerStorage(STORAGE_KEYS.availability, null);
-  if (Array.isArray(horarios)) return horarios;
-
-  const horariosIniciais = horariosBase();
-  guardarAvailability(horariosIniciais);
-  return horariosIniciais;
+function slugify(name) {
+  return name.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 70) || DEFAULT_TEACHER_SLUG;
 }
 
-function guardarLessons(lessons) {
-  salvarStorage(STORAGE_KEYS.lessons, lessons);
-}
+async function loadTeacherProfile(user, preferredName = '') {
+  const { data: profile, error } = await supabase
+    .from('perfis')
+    .select('id,nome,slug,antecedencia_cancelamento_horas')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error) throw error;
 
-function guardarBookings(bookings) {
-  salvarStorage(STORAGE_KEYS.bookings, bookings);
-}
-
-function guardarAvailability(horarios) {
-  salvarStorage(STORAGE_KEYS.availability, horarios);
-}
-
-function minutosDoDia(hora) {
-  const [horas, minutos] = hora.split(':').map(Number);
-  return horas * 60 + minutos;
-}
-
-function horaValida(hora) {
-  if (!/^\d{2}:\d{2}$/.test(hora)) return false;
-  const [horas, minutos] = hora.split(':').map(Number);
-  return horas >= 0 && horas <= 23 && minutos >= 0 && minutos <= 59;
-}
-
-function formatarHora(minutos) {
-  const horas = String(Math.floor(minutos / 60)).padStart(2, '0');
-  const restante = String(minutos % 60).padStart(2, '0');
-  return `${horas}:${restante}`;
-}
-
-function duracaoAgendamento(booking) {
-  return booking.duration_minutes || obterLessonPorId(booking.lessonId)?.duration_minutes || 30;
-}
-
-function horarioConflitaComAgendamento(data, hora, duracao, booking, ignoreBookingId = '') {
-  if (booking.status !== 'confirmed' || booking.id === ignoreBookingId) return false;
-
-  const inicioNovo = new Date(`${data}T${hora}:00`).getTime();
-  const fimNovo = inicioNovo + duracao * 60 * 1000;
-  const inicioExistente = new Date(`${booking.date}T${booking.time}:00`).getTime();
-  const fimExistente = inicioExistente + duracaoAgendamento(booking) * 60 * 1000;
-  return inicioNovo < fimExistente && inicioExistente < fimNovo;
-}
-
-function gerarHorariosDisponiveis(lesson, ignoreBookingId = '') {
-  if (!lesson) return [];
-
-  const janelas = obterAvailability();
-  const agendamentos = obterBookings();
-  const horarios = new Map();
-
-  for (let offset = 1; offset <= 14; offset += 1) {
-    const date = obterDataISO(offset);
-    const weekday = new Date(`${date}T12:00:00`).getDay();
-
-    janelas.filter((janela) => janela.weekday === weekday).forEach((janela) => {
-      const inicio = minutosDoDia(janela.start);
-      const fim = minutosDoDia(janela.end);
-      for (let minuto = inicio; minuto + lesson.duration_minutes <= fim; minuto += 30) {
-        const time = formatarHora(minuto);
-        const slot = {
-          id: `slot-${date}-${time.replace(':', '')}`,
-          date,
-          time,
-          lessonId: lesson.id,
-        };
-        const ocupado = agendamentos.some((booking) =>
-          horarioConflitaComAgendamento(date, time, lesson.duration_minutes, booking, ignoreBookingId));
-
-        if (dentroDoPrazoMinimo(slot) && !ocupado) {
-          horarios.set(slot.id, slot);
-        }
-      }
-    });
+  if (profile) {
+    state.teacher = profile;
+    return profile;
   }
 
-  return [...horarios.values()].sort((a, b) =>
-    new Date(`${a.date}T${a.time}:00`) - new Date(`${b.date}T${b.time}:00`));
-}
-
-function obterLessonPorId(id) {
-  return obterLessons().find((lesson) => lesson.id === id) || null;
-}
-
-function navegarPara(role) {
-  state.view = role;
-  loginView.classList.add('hidden');
-  professorView.classList.add('hidden');
-  availabilityView.classList.add('hidden');
-  agendaView.classList.add('hidden');
-  alunoView.classList.add('hidden');
-
-  if (role === 'professor') {
-    professorView.classList.remove('hidden');
-    renderProfessor();
-  } else if (role === 'availability') {
-    availabilityView.classList.remove('hidden');
-    renderDisponibilidade();
-  } else if (role === 'agenda') {
-    agendaView.classList.remove('hidden');
-    renderAgendaProfessor();
-  } else if (role === 'aluno') {
-    alunoView.classList.remove('hidden');
-    renderAluno();
-  } else {
-    loginView.classList.remove('hidden');
+  const name = (preferredName || user.user_metadata?.nome || user.email?.split('@')[0] || 'Mariana Duarte').trim();
+  const baseSlug = slugify(name);
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const slug = attempt === 0 ? baseSlug : `${baseSlug}-${user.id.replace(/-/g, '').slice(0, 6 + attempt)}`;
+    const { data, error: insertError } = await supabase
+      .from('perfis')
+      .insert({ id: user.id, nome: name, slug })
+      .select('id,nome,slug,antecedencia_cancelamento_horas')
+      .single();
+    if (!insertError) {
+      state.teacher = data;
+      return data;
+    }
+    lastError = insertError;
+    if (insertError.code !== '23505') throw insertError;
   }
+  throw lastError || new Error('Não foi possível criar o perfil da professora.');
 }
 
-function renderDisponibilidade() {
-  const horarios = obterAvailability().sort((a, b) =>
-    DIAS_SEMANA.findIndex((dia) => dia.value === a.weekday) - DIAS_SEMANA.findIndex((dia) => dia.value === b.weekday)
-      || a.start.localeCompare(b.start));
+async function loadTeacherData() {
+  const ownerId = teacherId();
+  const [lessonsResult, availabilityResult, blocksResult, bookingsResult] = await Promise.all([
+    supabase.from('aulas')
+      .select('id,nome,duracao_min,preco,ativo')
+      .eq('professora_id', ownerId)
+      .order('created_at', { ascending: true }),
+    supabase.from('disponibilidades')
+      .select('id,dia_semana,hora_inicio,hora_fim')
+      .eq('professora_id', ownerId)
+      .order('dia_semana')
+      .order('hora_inicio'),
+    supabase.from('bloqueios')
+      .select('id,data,motivo')
+      .eq('professora_id', ownerId)
+      .gte('data', dateIso())
+      .order('data'),
+    supabase.from('agendamentos')
+      .select('id,aula_id,aluno_nome,aluno_email,aluno_telefone,inicio,fim,duracao_min,status')
+      .eq('professora_id', ownerId)
+      .in('status', ['pendente', 'confirmado'])
+      .order('inicio'),
+  ]);
+  for (const result of [lessonsResult, availabilityResult, blocksResult, bookingsResult]) {
+    if (result.error) throw result.error;
+  }
 
-  listaDisponibilidade.innerHTML = horarios.length
-    ? horarios.map((janela) => {
-        const dia = DIAS_SEMANA.find((item) => item.value === janela.weekday);
-        return `
-          <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
-            <div>
-              <p class="font-semibold text-text">${escaparHtml(dia?.label || 'Dia')}</p>
-              <p class="mt-1 text-sm text-muted">${escaparHtml(janela.start)}–${escaparHtml(janela.end)}</p>
-            </div>
-            <button type="button" class="btn-ghost min-h-[40px] px-3 text-error-700" data-remove-availability="${escaparHtml(janela.id)}" aria-label="Remover disponibilidade de ${escaparHtml(dia?.label || 'dia')} das ${escaparHtml(janela.start)} às ${escaparHtml(janela.end)}">Remover</button>
-          </div>
-        `;
-      }).join('')
-    : '<p class="rounded-xl bg-bg p-4 text-sm text-muted">Nenhuma faixa de horário cadastrada. Adicione uma faixa para que os alunos possam ver horários livres.</p>';
+  state.lessons = lessonsResult.data.map((lesson) => ({
+    id: lesson.id,
+    name: lesson.nome,
+    duration: lesson.duracao_min,
+    price: Number(lesson.preco),
+    active: lesson.ativo,
+  }));
+  state.availability = availabilityResult.data.map((item) => ({
+    id: item.id,
+    weekday: item.dia_semana,
+    start: item.hora_inicio.slice(0, 5),
+    end: item.hora_fim.slice(0, 5),
+  }));
+  state.blocks = blocksResult.data;
+  state.teacherBookings = bookingsResult.data;
 }
 
-function adicionarDisponibilidade(event) {
-  event.preventDefault();
-  const dados = new FormData(formDisponibilidade);
-  const weekday = Number(dados.get('weekday'));
-  const start = String(dados.get('start') || '');
-  const end = String(dados.get('end') || '');
-  const inicio = minutosDoDia(start);
-  const fim = minutosDoDia(end);
+async function loadPublicTeacher(slug) {
+  const { data: teacher, error: teacherError } = await supabase
+    .from('perfis_publicos')
+    .select('slug,nome')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (teacherError) throw teacherError;
+  if (!teacher) {
+    const message = slug === DEFAULT_TEACHER_SLUG
+      ? 'Ainda não existe perfil para Mariana Duarte no banco. Crie a conta da professora primeiro e cadastre aulas e disponibilidade.'
+      : 'Este link público não corresponde a uma professora cadastrada.';
+    throw new Error(message);
+  }
 
-  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6
-    || !horaValida(start) || !horaValida(end) || inicio >= fim) {
-    erroDisponibilidade.textContent = 'Escolha o dia e informe um horário final posterior ao horário inicial.';
-    erroDisponibilidade.hidden = false;
+  const [lessonsResult, rulesResult] = await Promise.all([
+    supabase.from('aulas_publicas')
+      .select('aula_id,nome,duracao_min,preco')
+      .eq('slug', teacher.slug)
+      .order('nome'),
+    supabase.from('regras_agendamento_publicas')
+      .select('antecedencia_cancelamento_horas')
+      .eq('slug', teacher.slug)
+      .single(),
+  ]);
+  if (lessonsResult.error) throw lessonsResult.error;
+  if (rulesResult.error) throw rulesResult.error;
+
+  state.publicTeacher = { ...teacher, ...rulesResult.data };
+  state.lessons = lessonsResult.data.map((lesson) => ({
+    id: lesson.aula_id,
+    name: lesson.nome,
+    duration: lesson.duracao_min,
+    price: Number(lesson.preco),
+  }));
+}
+
+async function loadAvailableSlots() {
+  state.slots = [];
+  if (!state.publicTeacher || !state.selectedLessonId) {
+    renderAvailableSlots();
     return;
   }
 
-  const horarios = obterAvailability();
-  const temSobreposicao = horarios.some((janela) =>
-    janela.weekday === weekday && inicio < minutosDoDia(janela.end) && minutosDoDia(janela.start) < fim);
-
-  if (temSobreposicao) {
-    erroDisponibilidade.textContent = 'Essa faixa se sobrepõe a outra disponibilidade cadastrada para o mesmo dia.';
-    erroDisponibilidade.hidden = false;
-    return;
-  }
-
-  horarios.push({ id: gerarId('availability'), weekday, start, end });
-  guardarAvailability(horarios);
-  erroDisponibilidade.hidden = true;
-  formDisponibilidade.reset();
-  renderDisponibilidade();
-}
-
-listaDisponibilidade.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-remove-availability]');
-  if (!button) return;
-
-  const horarios = obterAvailability().filter((janela) => janela.id !== button.dataset.removeAvailability);
-  guardarAvailability(horarios);
-  renderDisponibilidade();
-});
-
-function renderProfessor() {
-  const lessons = obterLessons();
-  totalAulasProfessor.textContent = lessons.length;
-  listaAulasProfessor.innerHTML = lessons.length
-    ? lessons.map((lesson) => `
-        <div class="rounded-xl border border-border bg-bg p-3">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="font-semibold text-text">${escaparHtml(lesson.name)}</p>
-              <p class="mt-1 text-sm text-muted">${lesson.duration_minutes} min · ${formatarPreco(lesson.price_cents)}</p>
-            </div>
-            <span class="rounded-full bg-success-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-800">Ativa</span>
-          </div>
-        </div>
-      `).join('')
-    : '<p class="text-sm text-muted">Nenhuma aula cadastrada.</p>';
-
-  totalAgendadasProfessor.textContent = obterBookings()
-    .filter((booking) => booking.status === 'confirmed').length;
-}
-
-function renderAgendaProfessor() {
-  const bookings = obterBookings()
-    .filter((booking) => booking.status === 'confirmed')
-    .sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
-
-  agendaProfessor.innerHTML = bookings.length
-    ? bookings.map((booking) => {
-        const lesson = obterLessonPorId(booking.lessonId);
-        return `
-          <div class="rounded-xl border border-border bg-bg p-3">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="font-semibold text-text">${escaparHtml(lesson ? lesson.name : 'Aula')}</p>
-                <p class="mt-1 text-sm text-muted">${formatarDataLonga(booking.date)} · ${booking.time}</p>
-              </div>
-              <span class="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">Confirmada</span>
-            </div>
-            <p class="mt-2 text-sm text-muted">Aluno: ${escaparHtml(booking.studentName)} · ${escaparHtml(booking.contact)}</p>
-          </div>
-        `;
-      }).join('')
-    : '<p class="text-sm text-muted">Nenhum agendamento confirmado ainda.</p>';
-}
-
-function renderAluno() {
-  const lessons = obterLessons();
-  const selected = state.selectedLessonId || lessons[0]?.id || '';
-  state.selectedLessonId = selected;
-  if (!campoContatoAluno.value) {
-    campoContatoAluno.value = lerStorage(STORAGE_KEYS.activeStudentContact, '');
-  }
-
-  listaTiposAula.innerHTML = lessons.map((lesson) => {
-    const selecionada = lesson.id === selected;
-    return `
-      <button
-        type="button"
-        data-lesson-id="${escaparHtml(lesson.id)}"
-        aria-pressed="${selecionada}"
-        class="flex min-h-[76px] w-full items-center gap-3 rounded-xl border-2 p-3 text-left transition ${selecionada ? 'border-accent bg-accent/5 ring-2 ring-accent/20' : 'border-border bg-surface hover:border-accent/60'}"
-      >
-        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selecionada ? 'bg-accent text-white' : 'bg-accent/10 text-accent'}" aria-hidden="true">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        </span>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate font-semibold text-text">${escaparHtml(lesson.name)}</span>
-          <span class="mt-1 block text-sm text-muted">${lesson.duration_minutes} min · ${formatarPreco(lesson.price_cents)}</span>
-        </span>
-        <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${selecionada ? 'bg-accent text-white' : 'bg-bg text-muted'}">${selecionada ? 'Selecionada' : 'Escolher'}</span>
-      </button>
-    `;
-  }).join('');
-
-  const lesson = obterLessonPorId(selected);
-  const slots = gerarHorariosDisponiveis(lesson);
-  const datas = [...new Set(slots.map((slot) => slot.date))];
-  if (!datas.includes(state.selectedDate)) {
-    state.selectedDate = datas[0] || '';
-  }
-  totalHorarios.textContent = `${datas.length} ${datas.length === 1 ? 'dia' : 'dias'}`;
-
-  listaDiasDisponiveis.innerHTML = datas.map((date) => {
-    const selecionado = date === state.selectedDate;
-    const quantidade = slots.filter((slot) => slot.date === date).length;
-    return `
-      <button
-        type="button"
-        data-available-date="${date}"
-        aria-pressed="${selecionado}"
-        aria-label="Selecionar ${formatarDiaSemana(date)} ${formatarDataCurta(date)}, ${quantidade} horários disponíveis"
-        class="flex min-h-[96px] w-full flex-col items-start justify-between rounded-xl border-2 p-3 text-left transition ${selecionado ? 'border-accent bg-accent text-white shadow-md shadow-accent/20' : 'border-border bg-surface text-text hover:border-accent/60'}"
-      >
-        <span class="flex w-full items-center justify-between gap-1">
-          <span class="text-sm font-semibold capitalize">${formatarDiaSemana(date)}</span>
-          ${selecionado ? '<svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>' : ''}
-        </span>
-        <span class="text-sm ${selecionado ? 'text-white/90' : 'text-muted'}">${formatarDataCurta(date)}</span>
-        <span class="text-xs font-medium ${selecionado ? 'text-white' : 'text-accent'}">${quantidade} ${quantidade === 1 ? 'horário livre' : 'horários livres'}</span>
-      </button>
-    `;
-  }).join('');
-
-  const horariosDoDia = slots.filter((slot) => slot.date === state.selectedDate);
-  listaHorarios.innerHTML = horariosDoDia.length
-    ? horariosDoDia.map((slot) => {
-        const selecionado = slot.id === state.selectedSlotId;
-        return `
-          <button
-            type="button"
-            data-slot-id="${slot.id}"
-            aria-pressed="${selecionado}"
-            class="min-h-11 rounded-xl border-2 px-2 py-2 text-sm font-semibold transition ${selecionado ? 'border-accent bg-accent text-white' : 'border-border bg-surface text-text hover:border-accent'}"
-          >${slot.time}</button>
-        `;
-      }).join('')
-    : '<p class="col-span-3 text-sm text-muted">Não há horários livres para este dia.</p>';
-
-  listaDiasDisponiveis.querySelectorAll('[data-available-date]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (button.dataset.availableDate === state.selectedDate) return;
-      state.selectedDate = button.dataset.availableDate;
-      state.selectedSlotId = '';
-      resumoSlotSelecionado.classList.add('hidden');
-      renderAluno();
-      listaDiasDisponiveis.querySelector(`[data-available-date="${state.selectedDate}"]`)?.focus();
-    });
+  const dates = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(`${dateIso()}T12:00:00-03:00`);
+    date.setUTCDate(date.getUTCDate() + index);
+    return dateIso(date);
   });
-
-  listaHorarios.querySelectorAll('[data-slot-id]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const slot = slots.find((item) => item.id === button.dataset.slotId);
-      if (!slot) return;
-      state.selectedSlotId = slot.id;
-      state.selectedDate = slot.date;
-      resumoSlotSelecionado.textContent = `Horário selecionado: ${formatarDataLonga(slot.date)} às ${slot.time}`;
-      resumoSlotSelecionado.classList.remove('hidden');
-      listaHorarios.querySelectorAll('[data-slot-id]').forEach((item) => {
-        const selecionado = item === button;
-        item.setAttribute('aria-pressed', String(selecionado));
-        item.classList.toggle('border-accent', selecionado);
-        item.classList.toggle('bg-accent', selecionado);
-        item.classList.toggle('text-white', selecionado);
-        item.classList.toggle('border-border', !selecionado);
-        item.classList.toggle('bg-surface', !selecionado);
-        item.classList.toggle('text-text', !selecionado);
+  const results = await Promise.all(dates.map((date) => supabase.rpc('listar_horarios_livres', {
+    slug: state.publicTeacher.slug,
+    aula_id: state.selectedLessonId,
+    data: date,
+  })));
+  const threshold = Date.now() + (state.publicTeacher.antecedencia_cancelamento_horas || 12) * 60 * 60 * 1000;
+  results.forEach((result, index) => {
+    if (result.error) throw result.error;
+    (result.data || []).forEach((row) => {
+      if (new Date(row.inicio).getTime() < threshold) return;
+      const local = getLocalDateTime(row.inicio);
+      state.slots.push({
+        id: row.inicio,
+        start: row.inicio,
+        end: row.fim,
+        date: local.date || dates[index],
+        time: local.time,
       });
     });
   });
-
-  renderMinhasAulas();
+  state.slots.sort((first, second) => new Date(first.start) - new Date(second.start));
+  if (!state.slots.some((slot) => slot.id === state.selectedSlotId)) state.selectedSlotId = '';
+  if (!state.slots.some((slot) => slot.date === state.selectedDate)) {
+    state.selectedDate = state.slots[0]?.date || '';
+  }
+  renderAvailableSlots();
 }
 
-function renderMinhasAulas() {
-  const contatoAtivo = campoContatoAluno.value.trim();
-  const contatoKey = normalizarContato(contatoAtivo);
-  const bookings = obterBookings()
-    .filter((booking) => booking.status === 'confirmed' && normalizarContato(booking.contact) === contatoKey && contatoKey)
-    .sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+async function loadStudentBookings() {
+  const storedTokens = readBookingTokens();
+  const tokens = Array.isArray(storedTokens[state.publicTeacher.slug]) ? storedTokens[state.publicTeacher.slug] : [];
+  const results = await Promise.all(tokens.map((token) => supabase.rpc('consultar_agendamento', { cancel_token: token })));
+  state.studentBookings = results.map((result, index) => {
+    if (result.error) throw result.error;
+    const row = Array.isArray(result.data) ? result.data[0] : result.data;
+    if (!row) return null;
+    const local = getLocalDateTime(row.inicio);
+    return {
+      token: tokens[index],
+      lessonId: row.aula_id,
+      lessonName: row.aula_nome,
+      price: Number(row.preco),
+      start: row.inicio,
+      end: row.fim,
+      date: local.date,
+      time: local.time,
+      status: row.status,
+    };
+  }).filter(Boolean);
+  state.studentBookings.sort((first, second) => new Date(first.start) - new Date(second.start));
+}
 
-  totalMinhasAulas.textContent = bookings.length;
+function updateProfileLabels() {
+  const name = state.teacher?.nome || 'Professora';
+  ['#teacher-profile-name', '#availability-profile-name', '#agenda-profile-name'].forEach((selector) => {
+    $(selector).textContent = name;
+  });
+  const publicUrl = new URL(window.location.href);
+  publicUrl.search = '';
+  publicUrl.searchParams.set('professora', state.teacher?.slug || DEFAULT_TEACHER_SLUG);
+  $('#public-booking-link').href = publicUrl.toString();
+  $('#student-teacher-name').textContent = state.publicTeacher ? `com ${state.publicTeacher.nome}` : 'com a professora';
+}
 
-  listaMinhasAulas.innerHTML = bookings.length
-    ? bookings.map((booking) => {
-        const lesson = obterLessonPorId(booking.lessonId);
-        const slotDate = new Date(`${booking.date}T${booking.time}:00`);
-        const now = new Date();
-        const diffHoras = (slotDate - now) / (1000 * 60 * 60);
-        const podeAlterar = diffHoras > 12;
+async function navigateTo(view) {
+  if (view !== 'login' && !ensureDatabase()) return;
+  state.view = view;
+  views.forEach((section) => section.classList.add('hidden'));
+  showStatus('');
 
-        return `
-          <div class="rounded-xl border border-border bg-bg p-3">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="font-semibold text-text">${escaparHtml(lesson ? lesson.name : 'Aula')}</p>
-                <p class="mt-1 text-sm text-muted">${formatarDataLonga(booking.date)} · ${booking.time}</p>
-              </div>
-              <span class="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">Confirmada</span>
-            </div>
-            <p class="mt-2 text-sm text-muted">Professora ${PROFESSORA}</p>
-            <div class="mt-3 flex gap-2">
-              <button type="button" class="cancel-booking btn-ghost flex-1" data-booking-id="${escaparHtml(booking.id)}" ${podeAlterar ? '' : 'disabled'}>
-                ${podeAlterar ? 'Cancelar' : 'Prazo encerrado'}
-              </button>
-              <button type="button" class="reschedule-booking btn-accent flex-1" data-booking-id="${escaparHtml(booking.id)}" ${podeAlterar ? '' : 'disabled'} title="${podeAlterar ? 'Reagendar' : 'Fora do prazo de 12h'}">
-                ${podeAlterar ? 'Reagendar' : 'Prazo encerrado'}
-              </button>
-            </div>
+  if (view === 'login') {
+    $('#login-view').classList.remove('hidden');
+    return;
+  }
+
+  if (view === 'aluno') {
+    $('#aluno-view').classList.remove('hidden');
+    try {
+      const slug = getPublicSlug();
+      window.history.replaceState(null, '', publicUrlWithSlug(slug));
+      await loadPublicTeacher(slug);
+      updateProfileLabels();
+      await renderStudent();
+    } catch (error) {
+      showStatus(getErrorText(error), true);
+      lessonTypes.innerHTML = '<p class="text-sm text-muted">Não foi possível carregar as aulas.</p>';
+      availableDays.innerHTML = '';
+      availableTimes.innerHTML = '';
+    }
+    return;
+  }
+
+  if (!state.user || !state.teacher) {
+    await navigateTo('login');
+    return;
+  }
+  try {
+    await loadTeacherData();
+    updateProfileLabels();
+    if (view === 'professor') {
+      $('#professor-view').classList.remove('hidden');
+      renderProfessor();
+    } else if (view === 'availability') {
+      $('#availability-view').classList.remove('hidden');
+      renderAvailability();
+    } else if (view === 'agenda') {
+      $('#agenda-view').classList.remove('hidden');
+      renderTeacherAgenda();
+    }
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+}
+
+function renderAvailability() {
+  const ordered = [...state.availability].sort((first, second) =>
+    WEEKDAYS.findIndex((day) => day.value === first.weekday) - WEEKDAYS.findIndex((day) => day.value === second.weekday)
+      || first.start.localeCompare(second.start));
+
+  availabilityList.innerHTML = ordered.length
+    ? ordered.map((item) => {
+      const day = WEEKDAYS.find((candidate) => candidate.value === item.weekday);
+      return `
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+          <div>
+            <p class="font-semibold text-text">${escapeHtml(day?.label || 'Dia')}</p>
+            <p class="mt-1 text-sm text-muted">${escapeHtml(item.start)}–${escapeHtml(item.end)}</p>
           </div>
-        `;
-      }).join('')
-    : `<p class="text-sm text-muted">${contatoKey ? 'Nenhuma aula confirmada para este contato.' : 'Informe o e-mail ou WhatsApp usado no agendamento para consultar suas aulas.'}</p>`;
+          <button type="button" class="btn-ghost min-h-[40px] px-3 text-error-700" data-remove-availability="${escapeHtml(item.id)}">Remover</button>
+        </div>`;
+    }).join('')
+    : '<p class="rounded-xl bg-bg p-4 text-sm text-muted">Nenhuma faixa de horário cadastrada.</p>';
 
-  listaMinhasAulas.querySelectorAll('.cancel-booking').forEach((button) => {
-    button.addEventListener('click', () => {
-      const booking = obterBookings().find((item) => item.id === button.dataset.bookingId);
-      if (!booking) return;
-      abrirDialogoCancelamento(booking);
-    });
-  });
-
-  listaMinhasAulas.querySelectorAll('.reschedule-booking').forEach((button) => {
-    button.addEventListener('click', () => {
-      const bookingId = button.dataset.bookingId;
-      const booking = obterBookings().find((item) => item.id === bookingId);
-      if (!booking) return;
-      abrirDialogoReagendamento(booking);
-    });
-  });
+  blockList.innerHTML = state.blocks.length
+    ? state.blocks.map((block) => `
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+          <div>
+            <p class="font-semibold text-text">${formatLongDate(block.data)}</p>
+            <p class="mt-1 text-sm text-muted">${escapeHtml(block.motivo || 'Data bloqueada')}</p>
+          </div>
+          <button type="button" class="btn-ghost min-h-[40px] px-3 text-error-700" data-remove-block="${escapeHtml(block.id)}">Remover</button>
+        </div>`).join('')
+    : '<p class="text-sm text-muted">Nenhuma data bloqueada.</p>';
 }
 
-function normalizarContato(contato) {
-  const valor = contato.trim();
-  return valor.includes('@') ? valor.toLowerCase() : valor.replace(/\D/g, '');
+function renderProfessor() {
+  $('#prazo-alteracao-horas').value = state.teacher.antecedencia_cancelamento_horas;
+  $('#total-aulas-professor').textContent = state.lessons.length;
+  lessonList.innerHTML = state.lessons.length
+    ? state.lessons.map((lesson) => `
+        <div class="rounded-xl border border-border bg-bg p-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-semibold text-text">${escapeHtml(lesson.name)}</p>
+              <p class="mt-1 text-sm text-muted">${lesson.duration} min · ${formatPrice(lesson.price)}</p>
+            </div>
+            <span class="rounded-full bg-success-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-800">${lesson.active ? 'Ativa' : 'Inativa'}</span>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button type="button" class="btn-ghost flex-1" data-edit-lesson="${escapeHtml(lesson.id)}">Editar</button>
+            <button type="button" class="btn-ghost flex-1 text-error-700" data-delete-lesson="${escapeHtml(lesson.id)}">Excluir</button>
+          </div>
+        </div>`).join('')
+    : '<p class="text-sm text-muted">Nenhuma aula cadastrada. Cadastre uma para começar a receber agendamentos.</p>';
+
+  $('#total-agendadas-professor').textContent = state.teacherBookings.filter((booking) => booking.status === 'confirmado').length;
 }
 
-function abrirDialogo(conteudo) {
-  bookingDialogContent.innerHTML = conteudo;
+function renderTeacherAgenda() {
+  agendaList.innerHTML = state.teacherBookings.length
+    ? state.teacherBookings.map((booking) => {
+      const lesson = state.lessons.find((item) => item.id === booking.aula_id);
+      const local = getLocalDateTime(booking.inicio);
+      return `
+        <div class="rounded-xl border border-border bg-bg p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold text-text">${escapeHtml(lesson?.name || 'Aula')}</p>
+              <p class="mt-1 text-sm text-muted">${formatLongDate(local.date)} · ${local.time}</p>
+            </div>
+            <span class="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">${booking.status === 'pendente' ? 'Pendente' : 'Confirmada'}</span>
+          </div>
+          <p class="mt-2 text-sm text-muted">Aluno: ${escapeHtml(booking.aluno_nome)} · ${escapeHtml(booking.aluno_email || booking.aluno_telefone)}</p>
+          <div class="mt-3 flex gap-2">
+            ${booking.status === 'pendente' ? `<button type="button" class="btn-accent flex-1" data-teacher-booking="confirmar" data-booking-id="${escapeHtml(booking.id)}">Confirmar</button>` : ''}
+            ${booking.status === 'confirmado' ? `<button type="button" class="btn-ghost flex-1" data-teacher-booking="concluir" data-booking-id="${escapeHtml(booking.id)}">Marcar concluída</button>` : ''}
+            <button type="button" class="btn-ghost flex-1 text-error-700" data-teacher-booking="cancelar" data-booking-id="${escapeHtml(booking.id)}">Cancelar</button>
+          </div>
+        </div>`;
+    }).join('')
+    : '<p class="text-sm text-muted">Nenhum agendamento ativo no momento.</p>';
+}
+
+function renderLessonTypes() {
+  const activeLessons = state.lessons;
+  if (!activeLessons.some((lesson) => lesson.id === state.selectedLessonId)) {
+    state.selectedLessonId = activeLessons[0]?.id || '';
+  }
+  lessonTypes.innerHTML = activeLessons.length
+    ? activeLessons.map((lesson) => {
+      const selected = lesson.id === state.selectedLessonId;
+      return `
+        <button type="button" data-lesson-id="${escapeHtml(lesson.id)}" aria-pressed="${selected}" class="flex min-h-[76px] w-full items-center gap-3 rounded-xl border-2 p-3 text-left transition ${selected ? 'border-accent bg-accent/5 ring-2 ring-accent/20' : 'border-border bg-surface hover:border-accent/60'}">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected ? 'bg-accent text-white' : 'bg-accent/10 text-accent'}" aria-hidden="true">EN</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-semibold text-text">${escapeHtml(lesson.name)}</span>
+            <span class="mt-1 block text-sm text-muted">${lesson.duration} min · ${formatPrice(lesson.price)}</span>
+          </span>
+          <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${selected ? 'bg-accent text-white' : 'bg-bg text-muted'}">${selected ? 'Selecionada' : 'Escolher'}</span>
+        </button>`;
+    }).join('')
+    : '<p class="text-sm text-muted">A professora ainda não cadastrou aulas disponíveis.</p>';
+}
+
+function renderAvailableSlots() {
+  const dates = [...new Set(state.slots.map((slot) => slot.date))];
+  if (!dates.includes(state.selectedDate)) state.selectedDate = dates[0] || '';
+  $('#total-horarios').textContent = `${dates.length} ${dates.length === 1 ? 'dia' : 'dias'}`;
+  availableDays.innerHTML = dates.length
+    ? dates.map((date) => {
+      const selected = date === state.selectedDate;
+      const count = state.slots.filter((slot) => slot.date === date).length;
+      return `
+        <button type="button" data-available-date="${date}" aria-pressed="${selected}" aria-label="Selecionar ${formatWeekday(date)} ${formatShortDate(date)}, ${count} horários disponíveis" class="flex min-h-[96px] w-full flex-col items-start justify-between rounded-xl border-2 p-3 text-left transition ${selected ? 'border-accent bg-accent text-white shadow-md shadow-accent/20' : 'border-border bg-surface text-text hover:border-accent/60'}">
+          <span class="flex w-full items-center justify-between gap-1">
+            <span class="text-sm font-semibold capitalize">${formatWeekday(date)}</span>
+            ${selected ? '<span aria-hidden="true">✓</span>' : ''}
+          </span>
+          <span class="text-sm ${selected ? 'text-white/90' : 'text-muted'}">${formatShortDate(date)}</span>
+          <span class="text-xs font-medium ${selected ? 'text-white' : 'text-accent'}">${count} ${count === 1 ? 'horário livre' : 'horários livres'}</span>
+        </button>`;
+    }).join('')
+    : '<p class="col-span-2 text-sm text-muted">Não há horários livres nos próximos 14 dias.</p>';
+
+  const slotsOfDay = state.slots.filter((slot) => slot.date === state.selectedDate);
+  availableTimes.innerHTML = slotsOfDay.length
+    ? slotsOfDay.map((slot) => {
+      const selected = slot.id === state.selectedSlotId;
+      return `<button type="button" data-slot-id="${escapeHtml(slot.id)}" aria-pressed="${selected}" class="min-h-11 rounded-xl border-2 px-2 py-2 text-sm font-semibold transition ${selected ? 'border-accent bg-accent text-white' : 'border-border bg-surface text-text hover:border-accent'}">${slot.time}</button>`;
+    }).join('')
+    : '<p class="col-span-3 text-sm text-muted">Não há horários livres para este dia.</p>';
+}
+
+async function renderStudent() {
+  renderLessonTypes();
+  if (!state.selectedLessonId) {
+    state.slots = [];
+    renderAvailableSlots();
+  } else {
+    await loadAvailableSlots();
+  }
+  await loadStudentBookings();
+  renderStudentBookings();
+}
+
+function renderStudentBookings() {
+  const bookings = state.studentBookings;
+  totalStudentBookings.textContent = bookings.length;
+  studentBookingsList.innerHTML = bookings.length
+    ? bookings.map((booking) => {
+      const isActive = ['pendente', 'confirmado'].includes(booking.status);
+      const inTime = (new Date(booking.start) - Date.now()) / 3600000;
+      const canChange = isActive && inTime > (state.publicTeacher?.antecedencia_cancelamento_horas || 12);
+      const status = booking.status === 'cancelado' ? 'Cancelada'
+        : booking.status === 'concluido' ? 'Concluída'
+          : booking.status === 'pendente' ? 'Pendente' : 'Confirmada';
+      return `
+        <div class="rounded-xl border border-border bg-bg p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold text-text">${escapeHtml(booking.lessonName)}</p>
+              <p class="mt-1 text-sm text-muted">${formatLongDate(booking.date)} · ${booking.time}</p>
+            </div>
+            <span class="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">${status}</span>
+          </div>
+          <p class="mt-2 text-sm text-muted">Professora ${escapeHtml(state.publicTeacher.nome)}</p>
+          ${isActive ? `
+            <div class="mt-3 flex gap-2">
+              <button type="button" class="btn-ghost flex-1" data-student-action="cancelar" data-token="${escapeHtml(booking.token)}" ${canChange ? '' : 'disabled'}>${canChange ? 'Cancelar' : 'Prazo encerrado'}</button>
+              <button type="button" class="btn-accent flex-1" data-student-action="reagendar" data-token="${escapeHtml(booking.token)}" ${canChange ? '' : 'disabled'}>${canChange ? 'Reagendar' : 'Prazo encerrado'}</button>
+            </div>` : ''}
+          <button type="button" class="mt-2 min-h-[40px] w-full rounded-xl px-3 text-sm text-error-700 hover:bg-error-50" data-student-action="excluir" data-token="${escapeHtml(booking.token)}">Excluir meus dados deste agendamento</button>
+        </div>`;
+    }).join('')
+    : '<p class="text-sm text-muted">Ainda não há aulas agendadas neste navegador.</p>';
+}
+
+function getPublicSlug() {
+  return new URLSearchParams(window.location.search).get('professora')?.trim().toLowerCase() || DEFAULT_TEACHER_SLUG;
+}
+
+function openDialog(content) {
+  bookingDialogContent.innerHTML = content;
   bookingDialog.showModal();
 }
 
-function fecharDialogo() {
+function closeDialog() {
   if (bookingDialog.open) bookingDialog.close();
-  state.editingBookingId = '';
+  state.editingBookingToken = '';
 }
 
-function abrirDialogoCancelamento(booking) {
-  const lesson = obterLessonPorId(booking.lessonId);
-  const horasAteAula = (new Date(`${booking.date}T${booking.time}:00`) - new Date()) / (1000 * 60 * 60);
-  if (horasAteAula <= 12) {
-    abrirDialogo(`
+function openCancelDialog(booking) {
+  const canChange = (new Date(booking.start) - Date.now()) / 3600000
+    > (state.publicTeacher?.antecedencia_cancelamento_horas || 12);
+  if (!canChange) {
+    openDialog(`
       <h2 class="text-xl font-bold">Prazo de cancelamento encerrado</h2>
-      <p class="mt-3 text-sm text-muted">O cancelamento só pode ser feito até 12 horas antes da aula. Para falar com a professora ${PROFESSORA}, entre em contato pelo canal informado por ela.</p>
-      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>
-    `);
+      <p class="mt-3 text-sm text-muted">O cancelamento deve ser feito com antecedência mínima de ${state.publicTeacher.antecedencia_cancelamento_horas || 12} horas.</p>
+      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>`);
     return;
   }
-
-  abrirDialogo(`
+  openDialog(`
     <h2 class="text-xl font-bold">Cancelar aula?</h2>
-    <p class="mt-3 text-sm text-muted">Tem certeza que deseja cancelar <strong>${escaparHtml(lesson?.name || 'a aula')}</strong> em ${formatarDataLonga(booking.date)} às ${escaparHtml(booking.time)}?</p>
-    <p class="mt-2 text-sm text-muted">O horário voltará a ficar disponível para outros alunos.</p>
+    <p class="mt-3 text-sm text-muted">Tem certeza que deseja cancelar <strong>${escapeHtml(booking.lessonName)}</strong> em ${formatLongDate(booking.date)} às ${booking.time}?</p>
+    <p class="mt-2 text-sm text-muted">O horário voltará a ficar disponível.</p>
     <div class="mt-5 flex gap-3">
       <button type="button" data-dialog-action="close" class="btn-ghost flex-1">Manter aula</button>
-      <button type="button" data-dialog-action="confirm-cancel" data-booking-id="${escaparHtml(booking.id)}" class="btn-primary flex-1">Confirmar cancelamento</button>
-    </div>
-  `);
+      <button type="button" data-dialog-action="confirm-cancel" data-token="${escapeHtml(booking.token)}" class="btn-primary flex-1">Confirmar cancelamento</button>
+    </div>`);
 }
 
-function obterHorariosLivres(booking) {
-  return gerarHorariosDisponiveis(obterLessonPorId(booking.lessonId), booking.id)
-    .filter((slot) => slot.id !== booking.slotId);
-}
-
-function abrirDialogoReagendamento(booking) {
-  const horasAteAula = (new Date(`${booking.date}T${booking.time}:00`) - new Date()) / (1000 * 60 * 60);
-  if (horasAteAula <= 12) {
-    abrirDialogo(`
+async function openRescheduleDialog(booking) {
+  if ((new Date(booking.start) - Date.now()) / 3600000
+    <= (state.publicTeacher?.antecedencia_cancelamento_horas || 12)) {
+    openDialog(`
       <h2 class="text-xl font-bold">Prazo de reagendamento encerrado</h2>
-      <p class="mt-3 text-sm text-muted">O reagendamento só pode ser feito até 12 horas antes da aula. Para falar com a professora ${PROFESSORA}, entre em contato pelo canal informado por ela.</p>
-      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>
-    `);
+      <p class="mt-3 text-sm text-muted">O reagendamento deve ser feito com antecedência mínima de ${state.publicTeacher.antecedencia_cancelamento_horas || 12} horas.</p>
+      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>`);
     return;
   }
 
-  const livres = obterHorariosLivres(booking);
-  if (!livres.length) {
-    abrirDialogo(`
-      <h2 class="text-xl font-bold">Sem horários disponíveis</h2>
-      <p class="mt-3 text-sm text-muted">Não há outro horário livre para esta aula no momento.</p>
-      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Fechar</button>
-    `);
+  const dates = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(`${dateIso()}T12:00:00-03:00`);
+    date.setUTCDate(date.getUTCDate() + index);
+    return dateIso(date);
+  });
+  const results = await Promise.all(dates.map((date) => supabase.rpc('listar_horarios_livres', {
+    slug: state.publicTeacher.slug,
+    aula_id: booking.lessonId,
+    data: date,
+  })));
+  const slots = results.flatMap((result) => {
+    if (result.error) throw result.error;
+    return result.data || [];
+  })
+    .filter((slot) => slot.inicio !== booking.start
+      && new Date(slot.inicio).getTime() > Date.now() + (state.publicTeacher.antecedencia_cancelamento_horas || 12) * 3600000)
+    .map((slot) => ({ ...slot, ...getLocalDateTime(slot.inicio) }));
+  if (!slots.length) {
+    openDialog(`
+      <h2 class="text-xl font-bold">Sem horários disponíveis nesta semana</h2>
+      <p class="mt-3 text-sm text-muted">Tente novamente mais tarde ou fale com a professora.</p>
+      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Fechar</button>`);
     return;
   }
-
-  state.editingBookingId = booking.id;
-  abrirDialogo(`
+  state.editingBookingToken = booking.token;
+  openDialog(`
     <h2 class="text-xl font-bold">Reagendar aula</h2>
     <p class="mt-2 text-sm text-muted">Escolha um novo horário. A reserva atual só será alterada após confirmar.</p>
     <label for="novo-horario" class="mt-4 block text-sm font-medium">Novo horário</label>
     <select id="novo-horario" class="campo">
-      ${livres.map((slot) => `<option value="${escaparHtml(slot.id)}">${formatarDataLonga(slot.date)} às ${escaparHtml(slot.time)}</option>`).join('')}
+      ${slots.map((slot) => `<option value="${escapeHtml(slot.inicio)}">${formatLongDate(slot.date)} às ${slot.time}</option>`).join('')}
     </select>
     <div class="mt-5 flex gap-3">
       <button type="button" data-dialog-action="close" class="btn-ghost flex-1">Voltar</button>
       <button type="button" data-dialog-action="confirm-reschedule" class="btn-accent flex-1">Confirmar novo horário</button>
-    </div>
-  `);
+    </div>`);
 }
 
-function exibirConfirmacaoAgendamento(booking, tipo = 'agendamento') {
-  const lesson = obterLessonPorId(booking.lessonId);
-  abrirDialogo(`
+function showBookingConfirmation(booking, rescheduled = false) {
+  openDialog(`
     <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success-50 text-success-800" aria-hidden="true">✓</div>
-    <h2 class="mt-4 text-center text-xl font-bold">${tipo === 'reagendamento' ? 'Reagendamento confirmado!' : 'Aula confirmada!'}</h2>
-    <p class="mt-2 text-center text-sm text-muted">${escaparHtml(lesson?.name || 'Aula')} com ${PROFESSORA}</p>
+    <h2 class="mt-4 text-center text-xl font-bold">${rescheduled ? 'Reagendamento confirmado!' : 'Aula confirmada!'}</h2>
+    <p class="mt-2 text-center text-sm text-muted">${escapeHtml(booking.lessonName)} com ${escapeHtml(state.publicTeacher.nome)}</p>
     <div class="mt-4 rounded-xl bg-bg p-4 text-sm">
-      <p><strong>Data:</strong> ${formatarDataLonga(booking.date)}</p>
-      <p class="mt-1"><strong>Horário:</strong> ${escaparHtml(booking.time)}</p>
-      <p class="mt-1"><strong>Valor:</strong> ${formatarPreco(lesson?.price_cents || 0)}</p>
+      <p><strong>Data:</strong> ${formatLongDate(booking.date)}</p>
+      <p class="mt-1"><strong>Horário:</strong> ${booking.time}</p>
+      <p class="mt-1"><strong>Valor:</strong> ${formatPrice(booking.price)}</p>
     </div>
-    <p class="mt-3 text-xs text-muted">A confirmação foi salva neste navegador. O envio de e-mail não está habilitado no protótipo.</p>
-    <button type="button" data-dialog-action="close" class="btn-accent mt-5 w-full">Concluir</button>
-  `);
+    <p class="mt-3 text-xs text-muted">A reserva e as notificações foram registradas no Supabase. O envio externo depende de um worker configurado.</p>
+    <button type="button" data-dialog-action="close" class="btn-accent mt-5 w-full">Concluir</button>`);
 }
 
-bookingDialog.addEventListener('click', (event) => {
-  if (event.target === bookingDialog) {
-    fecharDialogo();
+async function handleTeacherAuth(event) {
+  event.preventDefault();
+  teacherAuthError.hidden = true;
+  if (!ensureDatabase()) return;
+
+  const formData = new FormData(formTeacherAuth);
+  const email = String(formData.get('email') || '').trim();
+  const password = String(formData.get('password') || '');
+  const name = String(formData.get('nome') || '').trim();
+  try {
+    const result = state.authMode === 'signup'
+      ? await supabase.auth.signUp({ email, password, options: { data: { nome: name } } })
+      : await supabase.auth.signInWithPassword({ email, password });
+    if (result.error) throw result.error;
+    if (!result.data.session || !result.data.user) {
+      teacherAuthError.textContent = 'Conta criada. Confirme seu e-mail e depois entre para continuar.';
+      teacherAuthError.hidden = false;
+      return;
+    }
+    state.user = result.data.user;
+    await loadTeacherProfile(state.user, name);
+    await navigateTo('professor');
+  } catch (error) {
+    teacherAuthError.textContent = getErrorText(error);
+    teacherAuthError.hidden = false;
+  }
+}
+
+async function saveLesson(event) {
+  event.preventDefault();
+  const formData = new FormData(formLesson);
+  const name = String(formData.get('nome') || '').trim();
+  const duration = Number(formData.get('duracao'));
+  const price = Number(formData.get('preco'));
+  if (name.length < 3 || !Number.isInteger(duration) || duration < 15 || duration > 120 || !Number.isFinite(price) || price <= 0) {
+    showStatus('Informe nome com pelo menos 3 caracteres, duração inteira entre 15 e 120 minutos e preço maior que zero.', true);
     return;
   }
 
+  const id = String(formData.get('id') || '');
+  const values = { nome: name, duracao_min: duration, preco: price.toFixed(2), ativo: true };
+  const result = id
+    ? await supabase.from('aulas').update(values).eq('id', id).eq('professora_id', teacherId())
+    : await supabase.from('aulas').insert({ ...values, professora_id: teacherId() });
+  if (result.error) throw result.error;
+  showStatus(id ? 'Aula atualizada.' : 'Aula cadastrada.');
+  resetLessonForm();
+  await navigateTo('professor');
+}
+
+async function saveAvailability(event) {
+  event.preventDefault();
+  const formData = new FormData(availabilityForm);
+  const weekday = Number(formData.get('weekday'));
+  const start = String(formData.get('start') || '');
+  const end = String(formData.get('end') || '');
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6 || !start || !end || start >= end) {
+    availabilityError.textContent = 'Escolha o dia e informe um horário final posterior ao horário inicial.';
+    availabilityError.hidden = false;
+    return;
+  }
+  const overlapping = state.availability.some((item) => item.weekday === weekday && start < item.end && item.start < end);
+  if (overlapping) {
+    availabilityError.textContent = 'Essa faixa se sobrepõe a outra disponibilidade cadastrada para o mesmo dia.';
+    availabilityError.hidden = false;
+    return;
+  }
+
+  const { error } = await supabase.from('disponibilidades').insert({
+    professora_id: teacherId(),
+    dia_semana: weekday,
+    hora_inicio: start,
+    hora_fim: end,
+  });
+  if (error) throw error;
+  availabilityError.hidden = true;
+  availabilityForm.reset();
+  await navigateTo('availability');
+}
+
+async function saveBlock(event) {
+  event.preventDefault();
+  const formData = new FormData(blockForm);
+  const date = String(formData.get('data') || '');
+  if (!date || date < dateIso()) {
+    blockError.textContent = 'Escolha uma data de hoje em diante.';
+    blockError.hidden = false;
+    return;
+  }
+  const { error } = await supabase.from('bloqueios').insert({
+    professora_id: teacherId(),
+    data: date,
+    motivo: String(formData.get('motivo') || '').trim() || null,
+  });
+  if (error) {
+    blockError.textContent = getErrorText(error);
+    blockError.hidden = false;
+    return;
+  }
+  blockError.hidden = true;
+  blockForm.reset();
+  await navigateTo('availability');
+}
+
+async function saveCancellationLeadTime(event) {
+  event.preventDefault();
+  const hours = Number(new FormData(event.currentTarget).get('horas'));
+  if (!Number.isInteger(hours) || hours < 0 || hours > 72) {
+    showStatus('Informe um prazo inteiro entre 0 e 72 horas.', true);
+    return;
+  }
+  const { error } = await supabase.from('perfis')
+    .update({ antecedencia_cancelamento_horas: hours })
+    .eq('id', teacherId());
+  if (error) throw error;
+  state.teacher.antecedencia_cancelamento_horas = hours;
+  showStatus('Prazo de alteração atualizado.');
+}
+
+async function bookStudentAppointment(event) {
+  event.preventDefault();
+  if (!state.selectedSlotId || !$('#consentimento-lgpd').checked) {
+    showStatus('Escolha um horário e aceite o uso dos dados para confirmar o agendamento.', true);
+    return;
+  }
+  const lesson = state.lessons.find((item) => item.id === state.selectedLessonId);
+  const slot = state.slots.find((item) => item.id === state.selectedSlotId);
+  if (!lesson || !slot) {
+    await loadAvailableSlots();
+    showStatus('O horário escolhido não está mais disponível. Selecione outro.', true);
+    return;
+  }
+
+  const { data: token, error } = await supabase.rpc('criar_agendamento', {
+    slug: state.publicTeacher.slug,
+    aula_id: lesson.id,
+    inicio: slot.start,
+    aluno_nome: STUDENT.name,
+    aluno_email: STUDENT.email,
+    aluno_telefone: null,
+    aceite_lgpd: true,
+  });
+  if (error) {
+    await loadAvailableSlots();
+    showStatus(getErrorText(error), true);
+    return;
+  }
+  saveBookingToken(state.publicTeacher.slug, token);
+  const booking = {
+    token,
+    lessonId: lesson.id,
+    lessonName: lesson.name,
+    price: lesson.price,
+    start: slot.start,
+    date: slot.date,
+    time: slot.time,
+  };
+  state.selectedSlotId = '';
+  $('#consentimento-lgpd').checked = false;
+  await renderStudent();
+  showBookingConfirmation(booking);
+}
+
+function openLessonForEdit(id) {
+  const lesson = state.lessons.find((item) => item.id === id);
+  if (!lesson) return;
+  lessonIdField.value = lesson.id;
+  lessonNameField.value = lesson.name;
+  lessonDurationField.value = lesson.duration;
+  lessonPriceField.value = lesson.price.toFixed(2);
+  lessonFormTitle.textContent = 'Editar aula';
+  lessonFormSubmit.textContent = 'Salvar alterações';
+  lessonFormCancel.classList.remove('hidden');
+  lessonNameField.focus();
+}
+
+async function handleDialogAction(action, button) {
+  if (action === 'close') {
+    closeDialog();
+    return;
+  }
+  if (action === 'confirm-cancel') {
+    const token = button.dataset.token;
+    const { error } = await supabase.rpc('cancelar_agendamento', { cancel_token: token });
+    if (error) throw error;
+    removeBookingToken(state.publicTeacher.slug, token);
+    closeDialog();
+    await renderStudent();
+    showStatus('Agendamento cancelado. O horário foi liberado.');
+    return;
+  }
+  if (action === 'confirm-reschedule') {
+    const newStart = $('#novo-horario')?.value;
+    const token = state.editingBookingToken;
+    if (!newStart || !token) throw new Error('Selecione um novo horário para continuar.');
+    const { error } = await supabase.rpc('reagendar_agendamento', {
+      cancel_token: token,
+      novo_inicio: newStart,
+    });
+    if (error) throw error;
+    closeDialog();
+    await renderStudent();
+    const updated = state.studentBookings.find((booking) => booking.token === token);
+    if (updated) showBookingConfirmation(updated, true);
+    return;
+  }
+  if (action === 'excluir') {
+    const token = button.dataset.token;
+    if (!window.confirm('Excluir permanentemente seus dados pessoais e este agendamento?')) return;
+    const { error } = await supabase.rpc('excluir_dados_aluno', { cancel_token: token });
+    if (error) throw error;
+    removeBookingToken(state.publicTeacher.slug, token);
+    closeDialog();
+    await renderStudent();
+    showStatus('Os dados deste agendamento foram excluídos.');
+  }
+}
+
+function publicUrlWithSlug(slug) {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('professora', slug);
+  return url.toString();
+}
+
+$('#public-booking-link').addEventListener('click', (event) => {
+  event.currentTarget.href = publicUrlWithSlug(state.teacher?.slug || DEFAULT_TEACHER_SLUG);
+});
+
+document.querySelectorAll('.role-button').forEach((button) => {
+  button.addEventListener('click', async () => {
+    if (button.dataset.role === 'professor') {
+      if (!ensureDatabase()) return;
+      $('#teacher-auth-card').classList.remove('hidden');
+      $('#teacher-email').focus();
+      return;
+    }
+    if (!ensureDatabase()) return;
+    await navigateTo('aluno');
+  });
+});
+
+teacherSignupToggle.addEventListener('click', () => {
+  state.authMode = state.authMode === 'login' ? 'signup' : 'login';
+  const isSignup = state.authMode === 'signup';
+  $('#teacher-auth-title').textContent = isSignup ? 'Criar conta da professora' : 'Acesso da professora';
+  $('#teacher-auth-submit').textContent = isSignup ? 'Criar conta' : 'Entrar';
+  teacherSignupToggle.textContent = isSignup ? 'Já tenho uma conta' : 'Criar conta da professora';
+  teacherNameField.hidden = !isSignup;
+  $('#teacher-name').required = isSignup;
+  $('#teacher-name').value = isSignup ? 'Mariana Duarte' : '';
+  $('#teacher-password').autocomplete = isSignup ? 'new-password' : 'current-password';
+  teacherAuthError.hidden = true;
+});
+
+formTeacherAuth.addEventListener('submit', handleTeacherAuth);
+formLesson.addEventListener('submit', (event) => saveLesson(event).catch((error) => showStatus(getErrorText(error), true)));
+lessonFormCancel.addEventListener('click', resetLessonForm);
+lessonList.addEventListener('click', async (event) => {
+  const edit = event.target.closest('[data-edit-lesson]');
+  if (edit) {
+    openLessonForEdit(edit.dataset.editLesson);
+    return;
+  }
+  const remove = event.target.closest('[data-delete-lesson]');
+  if (!remove || !window.confirm('Excluir esta aula? Agendamentos relacionados impedem a exclusão.')) return;
+  try {
+    const { error } = await supabase.from('aulas')
+      .delete()
+      .eq('id', remove.dataset.deleteLesson)
+      .eq('professora_id', teacherId());
+    if (error) throw error;
+    await navigateTo('professor');
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+availabilityForm.addEventListener('submit', (event) => saveAvailability(event).catch((error) => showStatus(getErrorText(error), true)));
+availabilityList.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-remove-availability]');
+  if (!button) return;
+  try {
+    const { error } = await supabase.from('disponibilidades')
+      .delete()
+      .eq('id', button.dataset.removeAvailability)
+      .eq('professora_id', teacherId());
+    if (error) throw error;
+    await navigateTo('availability');
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+blockForm.addEventListener('submit', (event) => saveBlock(event).catch((error) => showStatus(getErrorText(error), true)));
+$('#form-prazo-alteracao').addEventListener('submit', (event) => saveCancellationLeadTime(event).catch((error) => showStatus(getErrorText(error), true)));
+blockList.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-remove-block]');
+  if (!button) return;
+  try {
+    const { error } = await supabase.from('bloqueios')
+      .delete()
+      .eq('id', button.dataset.removeBlock)
+      .eq('professora_id', teacherId());
+    if (error) throw error;
+    await navigateTo('availability');
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+agendaList.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-teacher-booking]');
+  if (!button) return;
+  const status = {
+    confirmar: 'confirmado',
+    concluir: 'concluido',
+    cancelar: 'cancelado',
+  }[button.dataset.teacherBooking];
+  try {
+    const { error } = await supabase.from('agendamentos')
+      .update({ status })
+      .eq('id', button.dataset.bookingId)
+      .eq('professora_id', teacherId());
+    if (error) throw error;
+    await navigateTo('agenda');
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+$('#abrir-agenda-professor').addEventListener('click', () => navigateTo('agenda'));
+$('#abrir-disponibilidade-card').addEventListener('click', () => navigateTo('availability'));
+$('#voltar-professor').addEventListener('click', () => navigateTo('professor'));
+$('#voltar-painel-agenda').addEventListener('click', () => navigateTo('professor'));
+$('#logout-professor').addEventListener('click', async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    showStatus(getErrorText(error), true);
+    return;
+  }
+  state.user = null;
+  state.teacher = null;
+  await navigateTo('login');
+});
+$('#logout-aluno').addEventListener('click', () => {
+  const url = new URL(window.location.href);
+  url.search = '';
+  window.history.replaceState(null, '', url.toString());
+  navigateTo('login');
+});
+
+lessonTypes.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-lesson-id]');
+  if (!button || button.dataset.lessonId === state.selectedLessonId) return;
+  state.selectedLessonId = button.dataset.lessonId;
+  state.selectedDate = '';
+  state.selectedSlotId = '';
+  selectedSlotSummary.classList.add('hidden');
+  try {
+    renderLessonTypes();
+    await loadAvailableSlots();
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+availableDays.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-available-date]');
+  if (!button) return;
+  state.selectedDate = button.dataset.availableDate;
+  state.selectedSlotId = '';
+  selectedSlotSummary.classList.add('hidden');
+  renderAvailableSlots();
+});
+
+availableTimes.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-slot-id]');
+  if (!button) return;
+  const slot = state.slots.find((item) => item.id === button.dataset.slotId);
+  if (!slot) return;
+  state.selectedSlotId = slot.id;
+  selectedSlotSummary.textContent = `Horário selecionado: ${formatLongDate(slot.date)} às ${slot.time}`;
+  selectedSlotSummary.classList.remove('hidden');
+  renderAvailableSlots();
+});
+
+studentBookingsList.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-student-action]');
+  if (!button) return;
+  const booking = state.studentBookings.find((item) => item.token === button.dataset.token);
+  if (!booking) return;
+  try {
+    if (button.dataset.studentAction === 'cancelar') {
+      openCancelDialog(booking);
+    } else if (button.dataset.studentAction === 'excluir') {
+      await handleDialogAction('excluir', button);
+    } else {
+      await openRescheduleDialog(booking);
+    }
+  } catch (error) {
+    showStatus(getErrorText(error), true);
+  }
+});
+
+studentForm.addEventListener('submit', (event) => bookStudentAppointment(event).catch((error) => showStatus(getErrorText(error), true)));
+
+bookingDialog.addEventListener('click', async (event) => {
+  if (event.target === bookingDialog) {
+    closeDialog();
+    return;
+  }
   const button = event.target.closest('[data-dialog-action]');
   if (!button) return;
-  const action = button.dataset.dialogAction;
-
-  if (action === 'close') {
-    fecharDialogo();
-    return;
-  }
-
-  if (action === 'suggest-slot') {
-    const slot = gerarHorariosDisponiveis(obterLessonPorId(state.selectedLessonId))
-      .find((item) => item.id === button.dataset.slotId);
-    fecharDialogo();
-    if (slot) {
-      state.selectedSlotId = slot.id;
-      state.selectedDate = slot.date;
-      resumoSlotSelecionado.textContent = `Horário selecionado: ${formatarDataLonga(slot.date)} às ${slot.time}`;
-      resumoSlotSelecionado.classList.remove('hidden');
-      renderAluno();
-    }
-    return;
-  }
-
-  if (action === 'confirm-cancel') {
-    const bookingId = button.dataset.bookingId;
-    const bookings = obterBookings();
-    const booking = bookings.find((item) => item.id === bookingId);
-    if (!booking || (new Date(`${booking.date}T${booking.time}:00`) - new Date()) / (1000 * 60 * 60) <= 12) {
-      fecharDialogo();
-      abrirDialogo(`
-        <h2 class="text-xl font-bold">Não foi possível cancelar</h2>
-        <p class="mt-3 text-sm text-muted">A aula não foi alterada. Ela pode já ter sido cancelada ou o prazo de 12 horas foi encerrado.</p>
-        <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>
-      `);
-      return;
-    }
-
-    guardarBookings(bookings.filter((item) => item.id !== bookingId));
-    fecharDialogo();
-    renderProfessor();
-    renderAgendaProfessor();
-    renderAluno();
-    return;
-  }
-
-  if (action === 'confirm-reschedule') {
-    const bookingId = state.editingBookingId;
-    const bookings = obterBookings();
-    const booking = bookings.find((item) => item.id === bookingId);
-    const selectedSlotId = bookingDialogContent.querySelector('#novo-horario')?.value;
-    const slot = booking && gerarHorariosDisponiveis(obterLessonPorId(booking.lessonId), booking.id)
-      .find((item) => item.id === selectedSlotId && item.id !== booking.slotId);
-    const aindaPodeReagendar = booking
-      && (new Date(`${booking.date}T${booking.time}:00`) - new Date()) / (1000 * 60 * 60) > 12;
-
-    if (!booking || !slot || !aindaPodeReagendar || !dentroDoPrazoMinimo(slot)) {
-      fecharDialogo();
-      abrirDialogo(`
-        <h2 class="text-xl font-bold">Horário indisponível</h2>
-        <p class="mt-3 text-sm text-muted">A reserva não foi alterada. O horário escolhido não está mais disponível ou o prazo de 12 horas foi encerrado. Escolha outro horário.</p>
-        <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>
-      `);
-      renderAluno();
-      return;
-    }
-
-    const atualizado = {
-      ...booking,
-      slotId: slot.id,
-      date: slot.date,
-      time: slot.time,
-      updated_at: new Date().toISOString(),
-    };
-    guardarBookings(bookings.map((item) => item.id === bookingId ? atualizado : item));
-    fecharDialogo();
-    renderProfessor();
-    renderAgendaProfessor();
-    renderAluno();
-    exibirConfirmacaoAgendamento(atualizado, 'reagendamento');
+  try {
+    await handleDialogAction(button.dataset.dialogAction, button);
+  } catch (error) {
+    closeDialog();
+    showStatus(getErrorText(error), true);
   }
 });
 
 bookingDialog.addEventListener('close', () => {
-  state.editingBookingId = '';
+  state.editingBookingToken = '';
 });
 
-function adicionarAulaProfessor(event) {
-  event.preventDefault();
-  const formData = new FormData(formAulaProfessor);
-  const nome = String(formData.get('nome') || '').trim();
-  const duracao = Number(formData.get('duracao'));
-  const preco = Number(formData.get('preco'));
+$('#teacher-email').value = '';
+$('#teacher-name').value = 'Mariana Duarte';
+$('#student-fixed-name').textContent = STUDENT.name;
+$('#student-fixed-contact').textContent = STUDENT.email;
+blockDateField.min = dateIso();
 
-  if (!nome || nome.length < 3 || !Number.isInteger(duracao) || duracao < 15 || duracao > 120 || preco <= 0) {
-    alert('Informe dados válidos: nome com pelo menos 3 caracteres, duração entre 15 e 120 minutos e preço maior que zero.');
+async function startApplication() {
+  if (!supabase) {
+    await navigateTo('login');
+    showStatus(supabaseConfigError, true);
     return;
   }
 
-  const lessons = obterLessons();
-  lessons.push({
-    id: gerarId('lesson'),
-    name: nome,
-    duration_minutes: duracao,
-    price_cents: Math.round(preco),
-    created_at: new Date().toISOString(),
-  });
-  guardarLessons(lessons);
-  formAulaProfessor.reset();
-  renderProfessor();
-}
-
-function agendarAulaAluno(event) {
-  event.preventDefault();
-  const nome = document.querySelector('#aluno-nome').value.trim();
-  const contato = campoContatoAluno.value.trim();
-
-  erroContatoAluno.textContent = '';
-  erroContatoAluno.hidden = true;
-
-  if (!nome || !state.selectedSlotId) {
-    abrirDialogo(`
-      <h2 class="text-xl font-bold">Dados incompletos</h2>
-      <p class="mt-3 text-sm text-muted">Informe seu nome e selecione um horário livre para confirmar a aula.</p>
-      <button type="button" data-dialog-action="close" class="btn-primary mt-5 w-full">Entendi</button>
-    `);
+  const requestedSlug = new URLSearchParams(window.location.search).get('professora');
+  if (requestedSlug) {
+    await navigateTo('aluno');
     return;
   }
 
-  if (!contatoValido(contato)) {
-    erroContatoAluno.textContent = 'Informe um e-mail válido ou um telefone com DDD.';
-    erroContatoAluno.hidden = false;
-    campoContatoAluno.focus();
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    showStatus(getErrorText(error), true);
+    await navigateTo('login');
     return;
   }
-
-  const lesson = obterLessonPorId(state.selectedLessonId);
-  const slot = gerarHorariosDisponiveis(lesson).find((item) => item.id === state.selectedSlotId);
-  const bookings = obterBookings();
-  if (!slot || !dentroDoPrazoMinimo(slot)) {
-    state.selectedSlotId = '';
-    resumoSlotSelecionado.classList.add('hidden');
-    renderAluno();
-    mostrarConflitoAgendamento();
-    return;
+  if (data.session?.user) {
+    state.user = data.session.user;
+    try {
+      await loadTeacherProfile(state.user);
+      await navigateTo('professor');
+      return;
+    } catch (profileError) {
+      showStatus(getErrorText(profileError), true);
+    }
   }
-
-  const novoAgendamento = {
-    id: gerarId('booking'),
-    lessonId: slot.lessonId,
-    slotId: slot.id,
-    studentName: nome,
-    contact: contato,
-    duration_minutes: lesson.duration_minutes,
-    date: slot.date,
-    time: slot.time,
-    status: 'confirmed',
-    created_at: new Date().toISOString(),
-  };
-  bookings.push(novoAgendamento);
-
-  guardarBookings(bookings);
-  salvarStorage(STORAGE_KEYS.activeStudentContact, contato);
-  state.selectedSlotId = '';
-  resumoSlotSelecionado.classList.add('hidden');
-  renderProfessor();
-  renderAgendaProfessor();
-  renderAluno();
-  exibirConfirmacaoAgendamento(novoAgendamento);
+  await navigateTo('login');
 }
 
-function mostrarConflitoAgendamento() {
-  const slots = gerarHorariosDisponiveis(obterLessonPorId(state.selectedLessonId)).slice(0, 3);
-
-  abrirDialogo(`
-    <h2 class="text-xl font-bold">Esse horário acabou de ser ocupado</h2>
-    <p class="mt-2 text-sm text-muted">Seu agendamento não foi confirmado. Escolha uma destas próximas opções:</p>
-    <div class="mt-4 space-y-2">
-      ${slots.length ? slots.map((slot) => `
-        <button type="button" data-dialog-action="suggest-slot" data-slot-id="${escaparHtml(slot.id)}" class="w-full rounded-xl border border-border p-3 text-left text-sm hover:border-accent">
-          ${formatarDataLonga(slot.date)} às ${escaparHtml(slot.time)}
-        </button>
-      `).join('') : '<p class="text-sm text-muted">Não há outros horários livres para este tipo de aula.</p>'}
-    </div>
-    <button type="button" data-dialog-action="close" class="btn-ghost mt-4 w-full">Fechar</button>
-  `);
-}
-
-document.querySelectorAll('.role-button').forEach((button) => {
-  button.addEventListener('click', () => navegarPara(button.dataset.role));
-});
-
-document.querySelector('#logout-professor').addEventListener('click', () => navegarPara('login'));
-document.querySelector('#logout-aluno').addEventListener('click', () => navegarPara('login'));
-document.querySelector('#abrir-agenda-professor').addEventListener('click', () => navegarPara('agenda'));
-document.querySelector('#abrir-disponibilidade-card').addEventListener('click', () => navegarPara('availability'));
-document.querySelector('#voltar-professor').addEventListener('click', () => navegarPara('professor'));
-document.querySelector('#voltar-painel-agenda').addEventListener('click', () => navegarPara('professor'));
-formAulaProfessor.addEventListener('submit', adicionarAulaProfessor);
-formDisponibilidade.addEventListener('submit', adicionarDisponibilidade);
-formAgendaAluno.addEventListener('submit', agendarAulaAluno);
-campoContatoAluno.addEventListener('input', () => {
-  erroContatoAluno.hidden = true;
-  salvarStorage(STORAGE_KEYS.activeStudentContact, campoContatoAluno.value.trim());
-  renderMinhasAulas();
-});
-
-listaTiposAula.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-lesson-id]');
-  if (!button || button.dataset.lessonId === state.selectedLessonId) return;
-
-  state.selectedLessonId = button.dataset.lessonId;
-  state.selectedSlotId = '';
-  resumoSlotSelecionado.classList.add('hidden');
-  renderAluno();
-});
-
-if (!localStorage.getItem(STORAGE_KEYS.lessons) && !localStorage.getItem(STORAGE_KEYS.bookings) && !localStorage.getItem(STORAGE_KEYS.availability)) {
-  criarDadosBase();
-}
-
-const bookingsExistentes = obterBookings();
-if (bookingsExistentes.some((booking) => booking.id === 'booking-1' && booking.contact === 'ana@email.com')) {
-  guardarBookings(bookingsExistentes.filter((booking) => booking.id !== 'booking-1'));
-}
-
-window.addEventListener('storage', (event) => {
-  if ([STORAGE_KEYS.lessons, STORAGE_KEYS.bookings, STORAGE_KEYS.availability].includes(event.key)) {
-    if (state.view === 'professor') renderProfessor();
-    if (state.view === 'availability') renderDisponibilidade();
-    if (state.view === 'agenda') renderAgendaProfessor();
-    if (state.view === 'aluno') renderAluno();
-  }
-});
-
-navegarPara('login');
+startApplication().catch((error) => showStatus(getErrorText(error), true));

@@ -50,6 +50,7 @@
   <body>
     <div class="mx-auto min-h-screen w-full max-w-[460px] bg-bg pb-8">
       <main class="px-5 pt-8">
+        <p id="app-status" class="mb-4 rounded-xl bg-warning-50 p-3 text-sm text-warning-700" role="status" hidden></p>
         <section id="login-view" class="space-y-6">
           <div class="rounded-[28px] bg-gradient-to-br from-primary to-accent p-6 text-white shadow-lg shadow-primary/20">
             <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/90">
@@ -84,17 +85,51 @@
               </div>
             </button>
           </div>
+
+          <div id="teacher-auth-card" class="card hidden">
+            <h2 id="teacher-auth-title" class="text-lg font-semibold">Acesso da professora</h2>
+            <form id="form-professor-auth" class="mt-4 space-y-4">
+              <div id="teacher-name-field" hidden>
+                <label for="teacher-name" class="text-sm font-medium text-text">Seu nome</label>
+                <input id="teacher-name" name="nome" type="text" minlength="3" maxlength="120" class="campo" autocomplete="name" />
+              </div>
+              <div>
+                <label for="teacher-email" class="text-sm font-medium text-text">E-mail</label>
+                <input id="teacher-email" name="email" type="email" required class="campo" autocomplete="email" />
+              </div>
+              <div>
+                <label for="teacher-password" class="text-sm font-medium text-text">Senha</label>
+                <input id="teacher-password" name="password" type="password" required minlength="8" class="campo" autocomplete="current-password" />
+              </div>
+              <p id="teacher-auth-error" class="rounded-xl bg-error-50 p-3 text-sm text-error-700" role="alert" hidden></p>
+              <button id="teacher-auth-submit" type="submit" class="btn-primary w-full">Entrar</button>
+            </form>
+            <button type="button" id="toggle-teacher-signup" class="btn-secundario mt-3">Criar conta da professora</button>
+          </div>
         </section>
 
         <section id="professor-view" class="hidden space-y-6">
           <header class="flex items-center justify-between gap-3">
             <div>
               <p class="text-xs uppercase tracking-[0.12em] text-muted">Professor</p>
-              <h1 class="text-2xl font-bold">Mariana Duarte</h1>
+              <h1 id="teacher-profile-name" class="text-2xl font-bold">Professora</h1>
               <p class="text-sm text-muted">Professora de inglês</p>
             </div>
             <button type="button" id="logout-professor" class="btn-ghost">Sair</button>
           </header>
+          <a id="public-booking-link" class="btn-secundario" target="_blank" rel="noopener noreferrer">Abrir link público de agendamento</a>
+
+          <div class="card">
+            <h2 class="text-lg font-semibold">Prazo para alterações</h2>
+            <p class="mt-1 text-sm text-muted">Antecedência mínima para o aluno cancelar ou reagendar, de 0 a 72 horas.</p>
+            <form id="form-prazo-alteracao" class="mt-4 flex items-end gap-3">
+              <div class="flex-1">
+                <label for="prazo-alteracao-horas" class="text-sm font-medium text-text">Horas</label>
+                <input id="prazo-alteracao-horas" name="horas" type="number" min="0" max="72" step="1" required class="campo" />
+              </div>
+              <button type="submit" class="btn-primary">Salvar prazo</button>
+            </form>
+          </div>
 
           <div class="card">
             <div class="flex items-center justify-between">
@@ -105,23 +140,27 @@
           </div>
 
           <div class="card">
-            <h2 class="text-lg font-semibold">Cadastrar nova aula</h2>
+            <h2 id="lesson-form-title" class="text-lg font-semibold">Cadastrar nova aula</h2>
             <form id="form-aula-professor" class="mt-4 space-y-4">
+              <input id="lesson-id" name="id" type="hidden" />
               <div>
                 <label for="professor-nome" class="text-sm font-medium text-text">Nome da aula</label>
-                <input id="professor-nome" name="nome" type="text" class="campo" placeholder="Ex.: Conversação individual" />
+                <input id="professor-nome" name="nome" type="text" minlength="3" required class="campo" placeholder="Ex.: Conversação individual" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label for="professor-duracao" class="text-sm font-medium text-text">Duração</label>
-                  <input id="professor-duracao" name="duracao" type="number" min="15" max="120" step="5" class="campo" placeholder="50" />
+                  <input id="professor-duracao" name="duracao" type="number" min="15" max="120" step="1" required class="campo" placeholder="50" />
                 </div>
                 <div>
                   <label for="professor-preco" class="text-sm font-medium text-text">Preço</label>
-                  <input id="professor-preco" name="preco" type="number" min="1" step="1" class="campo" placeholder="4900" />
+                  <input id="professor-preco" name="preco" type="number" min="0.01" step="0.01" required class="campo" placeholder="49,00" />
                 </div>
               </div>
-              <button type="submit" class="btn-primary w-full">Salvar aula</button>
+              <div class="flex gap-2">
+                <button id="lesson-form-cancel" type="button" class="btn-ghost hidden flex-1">Cancelar edição</button>
+                <button id="lesson-form-submit" type="submit" class="btn-primary flex-1">Salvar aula</button>
+              </div>
             </form>
           </div>
 
@@ -151,7 +190,7 @@
           <header class="flex items-center gap-3">
             <button type="button" id="voltar-professor" class="btn-ghost shrink-0" aria-label="Voltar ao painel da professora">Voltar</button>
             <div>
-              <p class="text-xs uppercase tracking-[0.12em] text-muted">Mariana Duarte</p>
+              <p id="availability-profile-name" class="text-xs uppercase tracking-[0.12em] text-muted">Professora</p>
               <h1 class="text-2xl font-bold">Disponibilidade semanal</h1>
             </div>
           </header>
@@ -193,13 +232,31 @@
             </div>
             <div id="lista-disponibilidade" class="mt-4 space-y-3"></div>
           </div>
+
+          <div class="card">
+            <h2 class="text-lg font-semibold">Bloquear uma data</h2>
+            <p class="mt-1 text-sm text-muted">Nenhum novo horário será oferecido nessa data. Reservas existentes não são canceladas.</p>
+            <form id="form-bloqueio" class="mt-4 space-y-3">
+              <div>
+                <label for="bloqueio-data" class="text-sm font-medium text-text">Data</label>
+                <input id="bloqueio-data" name="data" type="date" required class="campo" />
+              </div>
+              <div>
+                <label for="bloqueio-motivo" class="text-sm font-medium text-text">Motivo (opcional)</label>
+                <input id="bloqueio-motivo" name="motivo" type="text" maxlength="200" class="campo" />
+              </div>
+              <p id="erro-bloqueio" class="rounded-xl bg-error-50 p-3 text-sm text-error-700" role="alert" hidden></p>
+              <button type="submit" class="btn-primary w-full">Bloquear data</button>
+            </form>
+            <div id="lista-bloqueios" class="mt-4 space-y-3"></div>
+          </div>
         </section>
 
         <section id="agenda-view" class="hidden space-y-6">
           <header class="flex items-center gap-3">
             <button type="button" id="voltar-painel-agenda" class="btn-ghost shrink-0" aria-label="Voltar ao painel da professora">Voltar</button>
             <div>
-              <p class="text-xs uppercase tracking-[0.12em] text-muted">Mariana Duarte</p>
+              <p id="agenda-profile-name" class="text-xs uppercase tracking-[0.12em] text-muted">Professora</p>
               <h1 class="text-2xl font-bold">Aulas agendadas</h1>
             </div>
           </header>
@@ -212,7 +269,7 @@
             <div>
               <p class="text-xs uppercase tracking-[0.12em] text-muted">Aluno</p>
               <h1 class="text-2xl font-bold">Agendar aula</h1>
-              <p class="text-sm text-muted">com Mariana Duarte</p>
+              <p id="student-teacher-name" class="text-sm text-muted">com a professora</p>
             </div>
             <button type="button" id="logout-aluno" class="btn-ghost">Sair</button>
           </header>
@@ -239,15 +296,18 @@
             <h2 class="text-lg font-semibold">Reservar aula</h2>
             <form id="form-agenda-aluno" class="mt-4 space-y-4">
               <div>
-                <label for="aluno-nome" class="text-sm font-medium text-text">Seu nome</label>
-                <input id="aluno-nome" name="nome" type="text" class="campo" placeholder="Ex.: Maria Souza" />
+                <p class="text-sm font-medium text-text">Aluno demonstrativo (identidade fixa)</p>
+                <p id="student-fixed-name" class="mt-2 text-sm text-muted">Rafael Nogueira</p>
               </div>
               <div>
-                <label for="aluno-contato" class="text-sm font-medium text-text">E-mail ou WhatsApp</label>
-                <input id="aluno-contato" name="contato" type="text" class="campo" placeholder="Ex.: maria@email.com" />
-                <p id="erro-contato" class="mt-1 text-sm text-error-700" role="alert" hidden></p>
+                <p class="text-sm font-medium text-text">Contato fixo</p>
+                <p id="student-fixed-contact" class="mt-2 text-sm text-muted">rafael.nogueira@example.com</p>
               </div>
               <div id="resumo-slot-selecionado" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-700 hidden"></div>
+              <label class="flex items-start gap-3 text-sm text-muted">
+                <input id="consentimento-lgpd" type="checkbox" required class="mt-1 h-4 w-4 accent-accent" />
+                <span>Concordo com o uso do meu nome e contato para gerenciar este agendamento, conforme a política de privacidade (versão agendamento-v1).</span>
+              </label>
               <button type="submit" class="btn-accent w-full">Confirmar agendamento</button>
             </form>
           </div>
