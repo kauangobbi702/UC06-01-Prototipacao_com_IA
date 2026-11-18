@@ -8,7 +8,7 @@
 1. Em [supabase.com](https://supabase.com), crie um projeto, defina nome e senha fortes para o banco e escolha a região São Paulo quando disponível.
 2. Em **Project Settings → API**, copie a Project URL e a chave **anon/publishable**. Não copie `service_role` para o navegador.
 3. Na raiz do projeto, copie `.env.example` para `.env` (`Copy-Item .env.example .env` no PowerShell) e informe apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para o front-end.
-4. No **SQL Editor** do Supabase, execute `supabase/migrations/20261117220000_booking_backend.sql`. Esse arquivo versionado é o schema executável do projeto e cria tabelas, constraints, índices, RLS, views, triggers e RPCs.
+4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: primeiro `20261117220000_booking_backend.sql`, depois `20261118191000_fixed_student_identity.sql`. A segunda migration cria o cadastro persistente de alunos, vincula as reservas existentes e atualiza as RPCs.
 5. Execute `npm install` e `npm run dev`; abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`). A dependência `@supabase/supabase-js` já está declarada em `package.json`.
 6. Configure os redirect URLs do Supabase Auth para desenvolvimento e produção. Se a confirmação de e-mail estiver ativa, confirme a conta da professora antes de entrar.
 
@@ -16,9 +16,78 @@ O app não usa mais `localStorage` como banco de dados. Sem URL e chave anon vá
 
 O cliente Supabase está em `supabase.js` (JavaScript, equivalente ao `lib/supabase.ts` do roteiro de referência) e cria o cliente com `createClient` usando somente URL/chave pública. `vite.config.js` aceita os nomes `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; somente esses dois valores são enviados ao bundle. A URL é validada para exigir HTTPS. O `.gitignore` ignora `.env` e arquivos `.env.*`, mantendo `.env.example` versionável.
 
-O fluxo do aluno usa a identidade demonstrativa fixa **Rafael Nogueira** (`rafael.nogueira@example.com`), sem conta Supabase. O texto de consentimento exibido corresponde à versão `agendamento-v1`. O token de cada agendamento é guardado apenas no `localStorage` do navegador usado para reservar, para habilitar consulta, cancelamento, reagendamento e exclusão de dados nesse navegador. Para publicação real, implemente a entrega segura do token ao aluno (por exemplo, em uma mensagem transacional).
+O fluxo do aluno usa a identidade demonstrativa fixa **Rafael Nogueira** (`rafael.nogueira@example.com`), sem conta Supabase. O banco mantém um único registro de aluno por professora e e-mail normalizado; novas reservas com o mesmo contato ficam vinculadas ao mesmo aluno, inclusive após fechar e reabrir o app. A migration atualiza também as reservas anteriores. O texto de consentimento exibido corresponde à versão `agendamento-v1`. O token de cada agendamento é guardado apenas no `localStorage` do navegador usado para reservar, para habilitar consulta, cancelamento, reagendamento e exclusão de dados nesse navegador. Para publicação real, implemente a entrega segura do token ao aluno (por exemplo, em uma mensagem transacional).
 
 No painel da professora, cadastre aulas, defina disponibilidade semanal, bloqueie datas, configure a antecedência de alteração (0 a 72 horas) e gerencie os agendamentos. O fluxo público consulta a disponibilidade no banco em blocos de 30 minutos pelos próximos 14 dias; a constraint de exclusão impede conflitos mesmo em reservas concorrentes.
+
+## Árvore da aplicação e profundidade das ações
+
+A árvore abaixo representa a navegação e o que cada ação faz no app. A profundidade é indicada pelo número entre colchetes e também pela indentação: **0** é a aplicação, **1** é uma inicialização ou tela, **2** é uma ação do usuário, **3** é a etapa interna (validação, consulta, RPC ou navegação) e **4** é a persistência ou o efeito final.
+
+```text
+EnglishFlow [0]
+├── Inicialização e roteamento [1]
+│   ├── Configuração Supabase ausente [2] → mostra erro; não simula gravação [3]
+│   ├── URL com ?professora=<slug> [2] → abre fluxo público do aluno [3]
+│   ├── Sessão Supabase ativa [2] → carrega perfil e abre painel [3]
+│   └── Sem sessão e sem link público [2] → abre tela inicial [3]
+│
+├── Tela inicial [1]
+│   ├── Professor [2]
+│   │   ├── Entrar [3] → Supabase Auth → buscar/criar perfil → painel [4]
+│   │   └── Criar conta [3] → Supabase Auth → perfil no primeiro acesso autenticado → painel [4]*
+│   └── Aluno [2] → abre o fluxo público [3]
+│
+├── Painel da professora [1] (requer autenticação)
+│   ├── Salvar prazo de alteração [2]
+│   │   ├── Validar valor inteiro entre 0 e 72 horas [3]
+│   │   └── Atualizar perfil da professora [4]
+│   ├── Cadastrar aula [2]
+│   │   ├── Validar nome, duração e preço [3]
+│   │   └── Inserir em aulas [4]
+│   ├── Editar aula [2]
+│   │   ├── Preencher formulário com dados atuais [3]
+│   │   └── Atualizar em aulas [4]
+│   ├── Excluir aula [2]
+│   │   ├── Pedir confirmação; reserva relacionada bloqueia exclusão [3]
+│   │   └── Excluir de aulas [4]
+│   ├── Abrir disponibilidade [2] → abre a tela de disponibilidade [3]
+│   ├── Abrir agenda [2] → abre a tela de aulas agendadas [3]
+│   ├── Abrir link público [2] → abre fluxo do aluno com o slug da professora [3]
+│   └── Sair [2] → encerrar sessão Supabase e voltar à tela inicial [3]
+│
+├── Tela de disponibilidade da professora [1] (acessada pelo painel)
+│   ├── Adicionar faixa semanal [2]
+│   │   ├── Validar dia e horários; impedir sobreposição [3]
+│   │   └── Inserir em disponibilidades [4]
+│   ├── Remover faixa [2] → excluir de disponibilidades [3] → lista atualizada [4]
+│   ├── Bloquear data [2]
+│   │   ├── Validar data [3]
+│   │   └── Inserir em bloqueios [4]
+│   └── Remover bloqueio [2] → excluir de bloqueios [3] → lista atualizada [4]
+│
+├── Tela de aulas agendadas da professora [1] (acessada pelo painel)
+│   ├── Listar reservas pendentes/confirmadas [2] → consultar agendamentos [3]
+│   ├── Confirmar reserva [2] → atualizar status para confirmado [3] → agenda atualizada [4]
+│   ├── Marcar como concluída [2] → atualizar status para concluído [3] → agenda atualizada [4]
+│   └── Cancelar reserva [2] → atualizar status para cancelado [3] → agenda atualizada [4]
+│
+└── Fluxo público do aluno [1] (sem conta Supabase)
+    ├── Carregar link da professora [2] → buscar perfil público, aulas ativas e antecedência [3] → exibir catálogo [4]
+    ├── Escolher tipo de aula [2] → consultar horários livres nos próximos 14 dias [3]
+    ├── Escolher dia e horário [2] → atualizar seleção na tela [3] → mostrar horário selecionado [4]
+    ├── Aceitar consentimento e confirmar agendamento [2]
+    │   ├── RPC criar_agendamento valida disponibilidade e localiza/cria aluno [3]
+    │   ├── Gravar agendamento, consentimento e notificações no Supabase [4]
+    │   └── Guardar token no localStorage deste navegador e exibir confirmação [4]
+    ├── Consultar “Minhas aulas” [2] → consultar reservas pelos tokens locais [3] → exibir lista [4]
+    ├── Cancelar aula [2] → confirmar ação e chamar RPC cancelar_agendamento [3] → liberar horário e atualizar lista [4]
+    ├── Reagendar aula [2] → escolher horário livre e chamar RPC reagendar_agendamento [3] → atualizar reserva e lista [4]
+    ├── Excluir dados do agendamento [2] → confirmar ação e chamar RPC excluir_dados_aluno [3] → remover dados/token [4]
+    └── Sair [2] → remover o slug da URL e voltar à tela inicial [3]
+```
+
+*\* Se a confirmação de e-mail do Supabase estiver habilitada, a criação da conta termina com a solicitação de confirmação; depois de confirmar, a professora entra e o perfil é criado no primeiro acesso autenticado.*
 
 ## Backend Supabase (PostgreSQL 15)
 
