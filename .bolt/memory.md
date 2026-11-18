@@ -2,8 +2,9 @@
 
 ## Product intent & audience
 
-- Project name appears to be "englishflow" (inferred from assistant example; not yet confirmed by user)
-- Likely an English-learning or language-related application, based on project name
+- GitHub repository URL: https://github.com/kauangobbi702/UC06-01-Prototipacao_com_IA
+- Repo name suggests an academic/educational prototyping project using AI (possibly a course unit — "Unidade Curricular" in Portuguese)
+- Previous "englishflow" inference is likely incorrect or unrelated
 
 ## Brand personality & voice
 
@@ -15,14 +16,13 @@
 
 ## Decisions, constraints & rationale
 
-- Project is not yet a git repository; needs `git init` and remote setup
-- GitHub sync requires repo URL and authentication (Personal Access Token) — environment cannot generate or guess credentials
-- GitHub repository URL not yet provided by user
+- Git operations (clone, push, pull) are blocked in the Bolt environment; external repo sync is not possible from here
+- User must sync manually: clone on their machine, copy Bolt project files into the local repo, then commit & push
+- If GitHub-side changes need to be reflected in Bolt, user must paste or describe those changes manually
 
 ## Open questions & assumptions
 
-- **Unconfirmed:** Is "englishflow" the correct project/repo name?
-- **Unconfirmed:** What is the exact GitHub repository URL to sync with?
-- **Unconfirmed:** How will authentication be provided (PAT, SSH, etc.)?
-- **Assumption:** User wants to push local files to a remote GitHub repo (direction of sync not yet clarified — push, pull, or both)
-- **Assumption:** This is the start of project setup; no prior git history exists locally
+- **Unconfirmed:** What is the project's actual purpose and scope?
+- **Unconfirmed:** Does the user want to pull existing repo content into Bolt, or prepare Bolt files to push to the repo?
+- **Assumption:** No prior git history exists in the Bolt workspace
+- **Assumption:** The repo may contain starter code or instructions not yet seen in this environment
