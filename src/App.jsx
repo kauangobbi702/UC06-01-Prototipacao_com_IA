@@ -8,6 +8,7 @@ import { LoadingState } from './components/LoadingState.jsx';
 import { useAppContext } from './context/AppContext.jsx';
 import { TeacherLessonsPage } from './features/teacher/TeacherLessonsPage.jsx';
 import { TeacherLessonFormPage } from './features/teacher/TeacherLessonFormPage.jsx';
+import { StudentBookingPage } from './features/student/StudentBookingPage.jsx';
 import { loadOrCreateTeacherProfile } from './services/teacherProfile.js';
 import { getSupabaseErrorMessage, STATUS } from './lib/status.js';
 
@@ -22,6 +23,7 @@ export function App() {
     profile,
     setProfile,
     setRole,
+    role,
     authStatus,
     authError,
     setAuthError,
@@ -29,6 +31,7 @@ export function App() {
   } = useAppContext();
   const [view, setView] = useState(publicSlugFromLocation() ? 'public' : 'home');
   const [authMode, setAuthMode] = useState('login');
+  const [authRole, setAuthRole] = useState('professora');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('Mariana Duarte');
@@ -141,13 +144,15 @@ export function App() {
   }
   if (view === 'public') {
     return (
-      <main className="mx-auto max-w-xl px-4 py-10">
-        <Card>
-          <h1 className="text-2xl font-bold">Agendamento da professora</h1>
-          <p className="mt-3 text-muted">A consulta pública será exibida nesta tela.</p>
-          <Button variant="secondary" className="mt-5" onClick={() => { window.history.replaceState(null, '', window.location.pathname); setView('home'); }}>Voltar</Button>
-        </Card>
-      </main>
+      <StudentBookingPage
+        role={role}
+        user={user}
+        onRequireAuth={() => {
+          setAuthRole('aluno');
+          setAuthMode('login');
+          setView('auth');
+        }}
+      />
     );
   }
   if (view === 'lesson-form' || view === 'availability' || view === 'agenda') {
@@ -173,7 +178,7 @@ export function App() {
       {view === 'home' ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
-            <p className="text-sm font-semibold uppercase tracking-wide text-primary">Professora</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary">{authRole === 'professora' ? 'Professora' : 'Aluno'}</p>
             <h2 className="mt-2 text-xl font-bold">Registrar aulas e agenda</h2>
             <Button className="mt-5 w-full" onClick={() => { setAuthMode('login'); setView('auth'); }}>Acesso da professora</Button>
           </Card>
@@ -201,7 +206,7 @@ export function App() {
             <Button type="submit" loading={formBusy} className="w-full">{authMode === 'signup' ? 'Criar conta' : 'Entrar'}</Button>
           </form>
           <Button variant="ghost" className="mt-3 w-full" onClick={() => { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setAuthMessage(''); }}>
-            {authMode === 'signup' ? 'Já tenho uma conta' : 'Criar conta da professora'}
+            {authMode === 'signup' ? 'Já tenho uma conta' : `Criar conta de ${authRole === 'professora' ? 'professora' : 'aluno'}`}
           </Button>
         </Card>
       )}
