@@ -9,6 +9,7 @@ const AppContext = createContext(null);
  */
 export function AppProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [authEvent, setAuthEvent] = useState('');
   const [authStatus, setAuthStatus] = useState(supabase ? STATUS.LOADING : STATUS.ERROR);
   const [authError, setAuthError] = useState(supabaseConfigError);
   const [profile, setProfile] = useState(null);
@@ -17,9 +18,14 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       setSession(nextSession);
+      setAuthEvent(event);
+      if (!nextSession) {
+        setProfile(null);
+        setRole(null);
+      }
       setAuthStatus(STATUS.SUCCESS);
     });
 
@@ -44,6 +50,7 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     session,
+    authEvent,
     user: session?.user ?? null,
     profile,
     setProfile,
@@ -59,7 +66,7 @@ export function AppProvider({ children }) {
       setSession(data.session);
       return data.session;
     },
-  }), [session, profile, role, authStatus, authError]);
+  }), [session, authEvent, profile, role, authStatus, authError]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

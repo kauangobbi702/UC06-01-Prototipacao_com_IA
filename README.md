@@ -8,15 +8,15 @@
 1. Em [supabase.com](https://supabase.com), crie um projeto, defina nome e senha fortes para o banco e escolha a região São Paulo quando disponível.
 2. Em **Project Settings → API**, copie a Project URL e a chave **anon/publishable**. Não copie `service_role` para o navegador.
 3. Na raiz do projeto, copie `.env.example` para `.env` (`Copy-Item .env.example .env` no PowerShell) e informe apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para o front-end.
-4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: primeiro `20261117220000_booking_backend.sql`, depois `20261118191000_fixed_student_identity.sql`. A segunda migration cria o cadastro persistente de alunos, vincula as reservas existentes e atualiza as RPCs.
+4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: `20261117220000_booking_backend.sql`, `20261118191000_fixed_student_identity.sql` e `20261119120000_auth_roles_students.sql`. A última migration adiciona papéis imutáveis, contas de aluno, RLS e RPCs de agendamento por conta. Revise e aplique-a manualmente; ela não foi executada a partir deste workspace.
 5. Execute `npm install` e `npm run dev`; abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`). A dependência `@supabase/supabase-js` já está declarada em `package.json`.
-6. Configure os redirect URLs do Supabase Auth para desenvolvimento e produção. Se a confirmação de e-mail estiver ativa, confirme a conta da professora antes de entrar.
+6. Configure os redirect URLs do Supabase Auth para desenvolvimento e produção. Se a confirmação de e-mail estiver ativa, confirme o endereço antes de entrar.
 
-O app não usa mais `localStorage` como banco de dados. Sem URL e chave anon válidas, as telas informam a configuração ausente e não simulam gravações locais. No primeiro cadastro da professora, o perfil é criado em `perfis`; o nome inicial sugerido é Mariana Duarte. Ela cadastra suas aulas, disponibilidade e bloqueios e pode compartilhar o link público gerado no painel.
+O app não usa `localStorage` como banco de dados nem para armazenar tokens de agendamento. Sem URL e chave anon válidas, as telas informam a configuração ausente e não simulam gravações locais. Professora e aluno criam contas Supabase Auth; o papel é registrado uma única vez no banco e não pode ser alternado. No primeiro acesso, a RPC `garantir_perfil` cria ou recupera o perfil. A professora cadastra aulas, disponibilidade e bloqueios e compartilha o link público gerado no painel. O aluno acessa “Minhas aulas” com a mesma conta usada para agendar.
 
-O cliente Supabase está em `supabase.js` (JavaScript, equivalente ao `lib/supabase.ts` do roteiro de referência) e cria o cliente com `createClient` usando somente URL/chave pública. `vite.config.js` aceita os nomes `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; somente esses dois valores são enviados ao bundle. A URL é validada para exigir HTTPS. O `.gitignore` ignora `.env` e arquivos `.env.*`, mantendo `.env.example` versionável.
+O cliente Supabase está em `supabase.js` e cria o cliente com `createClient` usando somente URL/chave pública. `vite.config.js` aceita `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; somente esses valores são enviados ao bundle. A URL é validada para exigir HTTPS. O `.gitignore` ignora `.env` e arquivos `.env.*`, mantendo `.env.example` versionável.
 
-O fluxo do aluno usa a identidade demonstrativa fixa **Rafael Nogueira** (`rafael.nogueira@example.com`), sem conta Supabase. O banco mantém um único registro de aluno por professora e e-mail normalizado; novas reservas com o mesmo contato ficam vinculadas ao mesmo aluno, inclusive após fechar e reabrir o app. A migration atualiza também as reservas anteriores. O texto de consentimento exibido corresponde à versão `agendamento-v1`. O token de cada agendamento é guardado apenas no `localStorage` do navegador usado para reservar, para habilitar consulta, cancelamento, reagendamento e exclusão de dados nesse navegador. Para publicação real, implemente a entrega segura do token ao aluno (por exemplo, em uma mensagem transacional).
+O aluno autentica-se com a própria conta. Cada reserva é vinculada a um único registro por professora/conta, e o vínculo por e-mail normalizado preserva as reservas históricas compatíveis. O texto de consentimento é registrado com a versão `agendamento-v1`. Cancelamento e reagendamento identificam a conta autenticada e não expõem tokens de cancelamento no navegador.
 
 No painel da professora, cadastre aulas, defina disponibilidade semanal, bloqueie datas, configure a antecedência de alteração (0 a 72 horas) e gerencie os agendamentos. O fluxo público consulta a disponibilidade no banco em blocos de 30 minutos pelos próximos 14 dias; a constraint de exclusão impede conflitos mesmo em reservas concorrentes.
 
@@ -29,14 +29,14 @@ EnglishFlow [0]
 ├── Inicialização e roteamento [1]
 │   ├── Configuração Supabase ausente [2] → mostra erro; não simula gravação [3]
 │   ├── URL com ?professora=<slug> [2] → abre fluxo público do aluno [3]
-│   ├── Sessão Supabase ativa [2] → carrega perfil e abre painel [3]
+│   ├── Sessão Supabase ativa [2] → consulta papel e garante perfil via RPC [3]
 │   └── Sem sessão e sem link público [2] → abre tela inicial [3]
 │
 ├── Tela inicial [1]
-│   ├── Professor [2]
-│   │   ├── Entrar [3] → Supabase Auth → buscar/criar perfil → painel [4]
-│   │   └── Criar conta [3] → Supabase Auth → perfil no primeiro acesso autenticado → painel [4]*
-│   └── Aluno [2] → abre o fluxo público [3]
+│   ├── Professora [2] → entrar/criar conta → Auth → perfil professora → painel [3]
+│   └── Aluno [2] → entrar/criar conta → consentimento → perfil aluno → “Minhas aulas” [3]
+│       ├── Esqueci minha senha [3] → solicitação de recuperação por e-mail [4]
+│       └── Confirmação de e-mail [3] → confirmar endereço e entrar [4]
 │
 ├── Painel da professora [1] (requer autenticação)
 │   ├── Salvar prazo de alteração [2]
@@ -53,6 +53,8 @@ EnglishFlow [0]
 │   │   └── Excluir de aulas [4]
 │   ├── Abrir disponibilidade [2] → abre a tela de disponibilidade [3]
 │   ├── Abrir agenda [2] → abre a tela de aulas agendadas [3]
+│   ├── Meu perfil [2] → editar nome, telefone e slug [3] → atualizar perfil próprio [4]
+│   ├── Excluir conta [2] → confirmação explícita [3] → remover conta e dados vinculados [4]
 │   ├── Abrir link público [2] → abre fluxo do aluno com o slug da professora [3]
 │   └── Sair [2] → encerrar sessão Supabase e voltar à tela inicial [3]
 │
@@ -72,36 +74,54 @@ EnglishFlow [0]
 │   ├── Marcar como concluída [2] → atualizar status para concluído [3] → agenda atualizada [4]
 │   └── Cancelar reserva [2] → atualizar status para cancelado [3] → agenda atualizada [4]
 │
-└── Fluxo público do aluno [1] (sem conta Supabase)
-    ├── Carregar link da professora [2] → buscar perfil público, aulas ativas e antecedência [3] → exibir catálogo [4]
-    ├── Escolher tipo de aula [2] → consultar horários livres nos próximos 14 dias [3]
-    ├── Escolher dia e horário [2] → atualizar seleção na tela [3] → mostrar horário selecionado [4]
-    ├── Aceitar consentimento e confirmar agendamento [2]
-    │   ├── RPC criar_agendamento valida disponibilidade e localiza/cria aluno [3]
-    │   ├── Gravar agendamento, consentimento e notificações no Supabase [4]
-    │   └── Guardar token no localStorage deste navegador e exibir confirmação [4]
-    ├── Consultar “Minhas aulas” [2] → consultar reservas pelos tokens locais [3] → exibir lista [4]
-    ├── Cancelar aula [2] → confirmar ação e chamar RPC cancelar_agendamento [3] → liberar horário e atualizar lista [4]
-    ├── Reagendar aula [2] → escolher horário livre e chamar RPC reagendar_agendamento [3] → atualizar reserva e lista [4]
-    ├── Excluir dados do agendamento [2] → confirmar ação e chamar RPC excluir_dados_aluno [3] → remover dados/token [4]
-    └── Sair [2] → remover o slug da URL e voltar à tela inicial [3]
+├── Fluxo público de agendamento [1] (catálogo público; conta exigida para reservar)
+│   ├── Carregar link da professora [2] → buscar perfil público, aulas ativas e antecedência [3] → exibir catálogo [4]
+│   ├── Escolher tipo de aula [2] → consultar horários livres nos próximos 14 dias [3]
+│   ├── Escolher dia e horário [2] → atualizar seleção na tela [3] → mostrar horário selecionado [4]
+│   ├── Continuar para login [2] → preservar aula/data/horário na URL [3] → retomar seleção após autenticar [4]
+│   └── Confirmar reserva [2] → RPC criar_agendamento valida conta, consentimento e disponibilidade [3] → gravar reserva [4]
+│
+└── Área do aluno [1] (requer autenticação)
+    ├── Minhas aulas [2] → listar reservas próprias por RPC [3] → exibir horários e status [4]
+    ├── Cancelar [2] → confirmar e chamar RPC por ID com validação de propriedade [3] → liberar horário [4]
+    ├── Reagendar [2] → escolher horário e chamar RPC por ID com validação de propriedade [3] → atualizar reserva [4]
+    ├── Meu perfil [2] → editar nome e telefone [3] → atualizar perfil próprio [4]
+    └── Excluir conta [2] → confirmar exclusão [3] → remover dados e conta Auth [4]
 ```
 
-*\* Se a confirmação de e-mail do Supabase estiver habilitada, a criação da conta termina com a solicitação de confirmação; depois de confirmar, a professora entra e o perfil é criado no primeiro acesso autenticado.*
+Se a confirmação de e-mail do Supabase estiver habilitada, a criação da conta termina com a solicitação de confirmação; depois de confirmar, entre para concluir o provisionamento do perfil.
 
 ## Backend Supabase (PostgreSQL 15)
 
-A migration `supabase/migrations/20261117220000_booking_backend.sql` define o modelo multi-professora, constraints de agendamento sem sobreposição, RLS e RPCs públicas limitadas para alunos sem conta. Ela também revoga os grants da tabela legada `lesson_types`, que não possui proprietário.
+A migration `supabase/migrations/20261117220000_booking_backend.sql` define o modelo, constraints de agendamento sem sobreposição, RLS e consultas públicas limitadas. `20261118191000_fixed_student_identity.sql` preserva a identidade por professora/contato e associa reservas existentes. `20261119120000_auth_roles_students.sql` adiciona o papel fixo por conta, perfil privado de aluno, vínculo histórico e RPCs autenticadas de agendamento, edição e exclusão. A última migration deve ser aplicada manualmente após revisão e ainda não foi executada neste ambiente.
 
-O token retornado ao confirmar a reserva permite ao aluno consultar seus dados (`consultar_agendamento`), cancelar, reagendar ou solicitar exclusão. O token deve ser entregue ao aluno com segurança e não deve ser registrado em logs.
+As RPCs de aluno autenticado não retornam tokens de cancelamento. `listar_meus_agendamentos`, `cancelar_agendamento` e `reagendar_agendamento` validam o vínculo com a conta antes de expor ou alterar registros; a exclusão de conta remove os dados pessoais e agendamentos conforme a opção confirmada pelo usuário.
 
 O front-end usa exclusivamente a URL HTTPS e a chave anon/publishable. `SUPABASE_SERVICE_ROLE_KEY`, tokens administrativos e `SUPABASE_DB_URL` jamais devem ser colocados em variáveis `VITE_` ou no navegador. A migration cria uma fila `notificacoes`; o envio de e-mail/WhatsApp exige um worker confiável no servidor, que ainda não faz parte deste protótipo. Confirme também no painel Supabase a frequência e a retenção dos backups do plano.
+
+### Publicação no Lovable
+
+- Conecte o repositório ao Lovable e mantenha a sincronização Git habilitada; revise cada alteração antes de aceitar o commit gerado.
+- Configure apenas as variáveis públicas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` nas configurações de ambiente do preview/deploy. Não cole `.env`, `service_role`, access token ou senha do banco no chat do Lovable.
+- Após publicar, no Supabase abra **Authentication → URL Configuration**; defina a URL publicada como **Site URL** e adicione-a também em **Redirect URLs** (incluindo os domínios de preview que realmente forem usados).
+- Teste o link `https://<dominio-publicado>/?professora=<slug>` no ambiente publicado, incluindo login do aluno e retorno ao horário selecionado.
+
+### Prints das 4 telas
+
+Adicione as capturas finais ao diretório [`docs/prints/`](./docs/prints/):
+
+- [`tela-login.png`](./docs/prints/tela-login.png) — entrada e seleção do papel;
+- [`cadastro-professora.png`](./docs/prints/cadastro-professora.png) — criação do perfil e link público;
+- [`agendamento-aluno.png`](./docs/prints/agendamento-aluno.png) — catálogo, seleção de dia/horário e consentimento;
+- [`minhas-aulas.png`](./docs/prints/minhas-aulas.png) — agenda pessoal e ações do aluno.
+
+As imagens ainda não estão no repositório; `docs/prints/.gitkeep` mantém o diretório disponível até a captura.
 
 ### Aviso temporário do `npm audit`
 
 O Vite foi fixado em `6.4.6`, que corrige os advisories próprios do Vite e usa `esbuild` corrigido. Em 17/11/2026, o registry ainda não publica uma versão corrigida de `picomatch` para o advisory [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf). Por isso, `npm audit` reporta quatro entradas altas para o mesmo problema transitivo (`picomatch`, `fdir`, `tinyglobby` e Vite); `npm audit --omit=dev` confirma zero vulnerabilidades nas dependências de execução do app. Não use `npm audit fix --force`: a sugestão de downgrade para Vite 6.2.7 reabre advisories corrigidos no Vite. Mantenha o servidor de desenvolvimento acessível apenas em `localhost` e reavalie após a publicação de uma versão corrigida de `picomatch`.
 
-As credenciais e o acesso ao projeto Supabase não estão configurados neste workspace. Por isso, o build do front-end pode ser validado aqui, mas a migration e os fluxos de Auth/RLS/RPC precisam ser aplicados e testados no projeto Supabase do responsável antes de considerar o sistema pronto para produção.
+Esta etapa não aplicou a migration nem executou testes autenticados no Supabase. Depois de aplicar as migrations ao projeto correto, valide Auth, RLS e RPCs antes de considerar o sistema pronto para produção.
 
 ## Checklist de CRUD e entrega
 
@@ -111,7 +131,10 @@ Faça este teste com o app conectado ao seu projeto Supabase e autenticado como 
 2. Confirme que as três aparecem no painel e no **Table Editor → public.aulas**, associadas ao perfil da professora.
 3. Edite uma aula no painel (por exemplo, altere o preço da aula IELTS) e confirme a alteração na lista e no Table Editor.
 4. Exclua uma das aulas sem agendamentos e confirme que duas permanecem. A exclusão de aulas com agendamentos relacionados é bloqueada pelo banco.
-5. Para validar o fluxo completo, cadastre uma faixa semanal, abra o link público, agende com o aluno demonstrativo, confira a linha em `public.agendamentos` pelo Table Editor e teste reagendamento/cancelamento dentro do prazo configurado.
+5. Cadastre uma faixa semanal, abra o link público em uma janela anônima e crie/entre em uma conta de aluno; confirme que a seleção de aula e horário sobrevive ao login.
+6. Agende a aula e confira a linha em `public.agendamentos`; saia e entre novamente para validar que o aluno continua vinculado à mesma conta.
+7. Teste cancelamento e reagendamento dentro e fora do prazo configurado; verifique que outro usuário não consegue consultar nem alterar a reserva.
+8. Edite o perfil de professora e aluno, teste recuperação de senha e exclusão com confirmação explícita; confira que RLS impede acesso cruzado.
 
 Não faça inserts anônimos diretamente em `public.aulas`: a tabela é protegida por RLS e exige a identidade autenticada da professora. Valide o CRUD pela interface e use o Table Editor apenas para conferir os registros.
 
@@ -195,10 +218,12 @@ Três personas foram geradas por IA (prompt CTQF, papel de pesquisadora de UX s�
 |---|---|---|---|
 | **RF01** | O sistema deve permitir à professora **cadastrar, listar, editar e excluir tipos de aula** (nome, duração, preço). | Mariana | Criar, editar e excluir uma aula e verificar a lista atualizada. |
 | **RF02** | O sistema deve permitir à professora **definir sua disponibilidade semanal** (dias e faixas de horário) e bloquear datas específicas. | Mariana | Cadastrar disponibilidade e verificar que só esses horários aparecem ao aluno. |
-| **RF03** | O sistema deve permitir ao aluno **visualizar os horários livres e agendar uma aula** informando nome e contato. | Rafael, Sônia | Agendar um horário livre e verificar que ele deixa de estar disponível. |
+| **RF03** | O sistema deve permitir ao aluno autenticado **visualizar horários livres e agendar uma aula** com seu perfil de contato. | Rafael, Sônia | Entrar como aluno, agendar e verificar que a reserva é vinculada à conta. |
 | **RF04** | O sistema deve **impedir agendamentos em horários já ocupados** ou fora da disponibilidade. | Mariana | Tentar agendar horário ocupado e verificar bloqueio com mensagem. |
 | **RF05** | O sistema deve permitir **cancelar ou reagendar** uma aula até um prazo mínimo configurável (padrão: 12h antes). | Rafael, Sônia | Cancelar dentro e fora do prazo e verificar resultado esperado. |
-| **RF06** | O sistema deve **enviar confirmação imediata e lembrete 24h antes** da aula por e-mail (ou WhatsApp, se disponível). | Sônia, Rafael | Agendar uma aula e verificar recebimento da confirmação e do lembrete. |
+| **RF06** | O sistema deve **enfileirar confirmação e lembrete 24h antes** da aula para entrega por serviço confiável. | Sônia, Rafael | Agendar e verificar os registros pendentes em `public.notificacoes`. |
+| **RF07** | O sistema deve permitir à professora criar conta, entrar e recuperar a senha. | Mariana | Criar conta, confirmar e-mail quando habilitado, entrar e testar recuperação. |
+| **RF08** | O sistema deve permitir ao aluno criar conta, entrar e recuperar a senha para manter suas aulas vinculadas. | Rafael, Sônia | Criar conta com consentimento, agendar e retomar “Minhas aulas” após entrar novamente. |
 
 ---
 
@@ -258,10 +283,10 @@ Depende de: US-01 (precisa existir ao menos um tipo de aula e disponibilidade)
 **Critérios de aceite**
 
 - **AC1.** Só são exibidos horários livres, dentro da disponibilidade da professora, para o tipo de aula escolhido.
-- **AC2.** Nome e contato (e-mail ou telefone válido) são obrigatórios para confirmar.
+- **AC2.** É necessário autenticar como aluno e aceitar o consentimento LGPD antes de confirmar.
 - **AC3.** Ao confirmar, o horário some imediatamente da lista de livres para os demais usuários.
 - **AC4.** Se o horário for ocupado por outra pessoa durante o processo, o sistema avisa e sugere os próximos horários livres.
-- **AC5.** A tela de confirmação mostra aula, data, hora e preço, e uma confirmação é enviada por e-mail em até 1 minuto.
+- **AC5.** A tela de confirmação mostra aula, data, hora e preço; o registro fica associado à conta do aluno.
 - **AC6.** O fluxo completo é concluído em, no máximo, 3 cliques após escolher a aula.
 
 ---
@@ -281,11 +306,58 @@ Depende de: US-02 (precisa existir um agendamento)
 
 **Critérios de aceite**
 
-- **AC1.** O botão de cancelar/reagendar está disponível apenas até 12h antes da aula.
+- **AC1.** O botão de cancelar/reagendar fica disponível até o prazo configurado pela professora (padrão: 12h).
 - **AC2.** Antes de cancelar, o sistema pede confirmação com texto claro ("Tem certeza que deseja cancelar?").
 - **AC3.** Ao cancelar, o horário volta a ficar livre e a professora recebe notificação.
 - **AC4.** Ao reagendar, a nova data só pode ser escolhida entre horários livres e o horário antigo é liberado.
-- **AC5.** Fora do prazo, o sistema explica o motivo e mostra o contato da professora.
+- **AC5.** Fora do prazo, o sistema explica o motivo e informa que a alteração deve ser combinada com a professora.
+
+---
+
+### US-04 · Professora cria conta
+
+```
+ID: US-04
+Título: Professora cria conta
+Como professora (persona: Mariana),
+quero criar uma conta segura com meu link público,
+para cadastrar minhas aulas e disponibilidades.
+Prioridade: MUST (MoSCoW)
+Estimativa: 5 pontos (story points)
+Depende de: — (cadastro autônomo)
+```
+
+**Critérios de aceite**
+
+- **AC1.** Nome, e-mail, senha e slug são obrigatórios; o slug é validado quanto ao formato e disponibilidade.
+- **AC2.** Quando a confirmação de e-mail estiver habilitada, a tela informa que é necessário confirmar antes de entrar.
+- **AC3.** Após entrar, a professora vê apenas o próprio perfil, aulas, disponibilidade e agendamentos.
+- **AC4.** “Esqueci minha senha” envia as instruções pelo Supabase Auth e permite definir uma nova senha.
+- **AC5.** O perfil permite editar nome, telefone e antecedência de alteração (0–72h), além de solicitar exclusão da própria conta.
+
+---
+
+### US-05 · Aluno cria conta
+
+```
+ID: US-05
+Título: Aluno cria conta
+Como aluno ou responsável (personas: Rafael e Sônia),
+quero criar uma conta com consentimento LGPD,
+para agendar, consultar e gerenciar minhas aulas sem perder meu histórico ao reabrir o app.
+Prioridade: MUST (MoSCoW)
+Estimativa: 3 pontos (story points)
+Depende de: US-02 (para existir uma professora, aula e disponibilidade para reservar)
+```
+
+**Critérios de aceite**
+
+- **AC1.** Nome, e-mail, senha e aceite LGPD são obrigatórios; telefone é opcional quando há e-mail válido.
+- **AC2.** Após entrar, “Minhas aulas” mostra apenas reservas vinculadas à conta, inclusive após sair e entrar novamente.
+- **AC3.** A aula, data e horário selecionados no link público são preservados durante o login/cadastro.
+- **AC4.** O aluno pode cancelar ou reagendar dentro do prazo e editar nome/telefone do próprio perfil.
+- **AC5.** A exclusão exige confirmação explícita e remove apenas a própria conta e seus dados associados.
+- **AC6.** Erro de validação ou rede é informado e não mostra sucesso falso.
 
 ---
 
@@ -301,18 +373,33 @@ Depende de: US-02 (precisa existir um agendamento)
 
 ### US-02 · Agendar aula em horário livre (MUST)
 - [ ] AC1. Apenas horários livres e dentro da disponibilidade são exibidos
-- [ ] AC2. Nome e contato válidos são obrigatórios
+- [ ] AC2. Autenticação de aluno e consentimento LGPD são obrigatórios
 - [ ] AC3. Horário agendado some da lista de livres imediatamente
 - [ ] AC4. Conflito de horário gera aviso e sugestão de alternativas
-- [ ] AC5. Tela e e-mail de confirmação com aula, data, hora e preço (≤ 1 min)
+- [ ] AC5. Tela de confirmação mostra aula, data, hora e preço
 - [ ] AC6. Fluxo concluído em no máximo 3 cliques
 
 ### US-03 · Cancelar ou reagendar aula (SHOULD)
-- [ ] AC1. Ação disponível apenas até 12h antes da aula
+- [ ] AC1. Ação disponível apenas até o prazo configurado (padrão 12h)
 - [ ] AC2. Confirmação explícita antes de cancelar
-- [ ] AC3. Horário liberado e professora notificada ao cancelar
+- [ ] AC3. Horário liberado e notificação registrada ao cancelar
 - [ ] AC4. Reagendamento só para horários livres; horário antigo liberado
-- [ ] AC5. Fora do prazo: mensagem explicativa e contato da professora
+- [ ] AC5. Fora do prazo: mensagem explicativa
+
+### US-04 · Professora cria conta (MUST)
+- [ ] AC1. Nome, e-mail, senha e slug obrigatórios; slug validado quanto a formato e disponibilidade
+- [ ] AC2. Mensagem de confirmação de e-mail quando habilitada
+- [ ] AC3. Professora acessa apenas os próprios dados
+- [ ] AC4. Recuperação de senha e redefinição funcionais
+- [ ] AC5. Perfil permite editar nome, telefone e antecedência; exclusão pede confirmação
+
+### US-05 · Aluno cria conta (MUST)
+- [ ] AC1. Nome, e-mail, senha e aceite LGPD obrigatórios
+- [ ] AC2. “Minhas aulas” lista apenas reservas próprias após novo login
+- [ ] AC3. Seleção do link público sobrevive ao login/cadastro
+- [ ] AC4. Aluno edita nome/telefone e gerencia reserva dentro do prazo
+- [ ] AC5. Exclusão confirmada remove apenas seus dados
+- [ ] AC6. Falhas são apresentadas sem confirmação falsa
 
 > **Definição de pronto:** a história está pronta quando **todos** os ACs acima passam.
 
@@ -329,7 +416,8 @@ O que **NÃO** será feito no MVP:
 - Pacotes de aulas, assinaturas e planos recorrentes.
 - Aulas em grupo (cada agendamento é individual).
 - Avaliações, chat interno, material didático e acompanhamento de progresso.
-- Múltiplos professores / painel de escola com várias contas.
+- Gestão de várias professoras por uma única escola/conta; professoras independentes podem manter suas próprias contas e agendas.
+- Envio efetivo de e-mails/WhatsApp: a migration registra notificações em fila, mas o worker de entrega é serviço externo e não faz parte deste front-end client-side.
 - Suporte a outros idiomas de interface além do português.
 - Emissão de nota fiscal e relatórios financeiros.
 

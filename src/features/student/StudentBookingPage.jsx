@@ -38,7 +38,7 @@ async function queryAvailableSlots(teacher, lessonId, leadTime) {
 }
 
 /**
- * @param {{ role: string|null, user: object|null, onRequireAuth: () => void }} props
+ * @param {{ role: string|null, user: object|null, onRequireAuth: (selection?: {aulaId: string, date: string, inicio: string}) => void }} props
  */
 export function StudentBookingPage({ role, user, onRequireAuth }) {
   const query = new URLSearchParams(window.location.search);
@@ -168,7 +168,7 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
   async function bookLesson(event) {
     event.preventDefault();
     if (!user || role !== 'aluno') {
-      onRequireAuth();
+      onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart });
       return;
     }
     if (!selectedLesson || !selectedStart || !consentAccepted) {
@@ -176,6 +176,7 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
       setNoticeIsError(true);
       return;
     }
+    const selectedTime = slots.find((slot) => slot.inicio === selectedStart);
     setSubmitting(true);
     setNotice('');
     const { error } = await supabase.rpc('criar_agendamento', {
@@ -191,7 +192,7 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
     } else {
       setSelectedStart('');
       setConsentAccepted(false);
-      setNotice(`Aula confirmada com ${teacher.nome}.`);
+      setNotice(`Aula ${selectedLesson.nome} confirmada com ${teacher.nome} para ${formatLocalDate(selectedDate, { dateStyle: 'medium' })} às ${selectedTime?.time || ''} · ${PRICE_FORMATTER.format(Number(selectedLesson.preco))}.`);
       setNoticeIsError(false);
       await Promise.all([loadSlots(selectedLessonId), loadBookings()]);
     }
@@ -266,7 +267,7 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
               <h1 className="mt-1 text-2xl font-bold">{teacher?.nome}</h1>
               <p className="text-sm text-muted">Horários no fuso de São Paulo</p>
             </div>
-            {user && <Button variant="secondary" onClick={onRequireAuth}>{role === 'aluno' ? 'Minha conta' : 'Entrar'}</Button>}
+            {user && <Button variant="secondary" onClick={() => onRequireAuth()}>{role === 'aluno' ? 'Minha conta' : 'Acessar painel'}</Button>}
           </header>
 
           {notice && (
@@ -363,7 +364,7 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
                 ) : (
                   <div className="mt-4">
                     <p className="text-sm text-muted">Para confirmar a reserva e acompanhar suas aulas, entre ou crie uma conta de aluno.</p>
-                    <Button className="mt-4 w-full" onClick={onRequireAuth}>Entrar ou criar conta de aluno</Button>
+                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart })}>Entrar ou criar conta de aluno</Button>
                   </div>
                 )}
               </Card>
@@ -378,6 +379,8 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
                     <ul className="mt-4 space-y-3">
                       {bookings.map((booking) => {
                         const local = getLocalDateTime(booking.inicio);
+                        const canChange = Date.now() <= new Date(booking.inicio).getTime()
+                          - booking.antecedencia_cancelamento_horas * 60 * 60 * 1000;
                         return (
                           <li key={booking.id}>
                             <Card className="shadow-none">
@@ -388,11 +391,14 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
                                 </div>
                                 <Badge status={booking.status}>{booking.status}</Badge>
                               </div>
-                              {['pendente', 'confirmado'].includes(booking.status) && (
+                              {['pendente', 'confirmado'].includes(booking.status) && canChange && (
                                 <div className="mt-4 flex flex-wrap gap-2">
                                   <Button variant="secondary" onClick={() => changeBooking(booking, 'cancelar')}>Cancelar</Button>
                                   <Button variant="secondary" onClick={() => changeBooking(booking, 'reagendar')}>Reagendar</Button>
                                 </div>
+                              )}
+                              {['pendente', 'confirmado'].includes(booking.status) && !canChange && (
+                                <p className="mt-3 text-sm text-muted">O prazo para alterar esta aula terminou.</p>
                               )}
                               {rescheduleFor === booking.id && (
                                 <form

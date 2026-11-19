@@ -9,12 +9,13 @@ import { LoadingState } from '../../components/LoadingState.jsx';
 import { getSupabaseErrorMessage, STATUS } from '../../lib/status.js';
 
 /**
- * @param {{ profile: {id: string, nome: string, slug: string, antecedencia_cancelamento_horas: number}, notice?: string, onLogout: () => void, onAddLesson: () => void, onEditLesson: (lesson: object) => void, onOpenAvailability: () => void, onOpenAgenda: () => void, onSaveLeadTime: (hours: number) => Promise<void> }} props
+ * @param {{ profile: {id: string, nome: string, slug: string, antecedencia_cancelamento_horas: number}, notice?: string, onLogout: () => void, onEditProfile: () => void, onAddLesson: () => void, onEditLesson: (lesson: object) => void, onOpenAvailability: () => void, onOpenAgenda: () => void, onSaveLeadTime: (hours: number) => Promise<void> }} props
  */
 export function TeacherLessonsPage({
   profile,
   notice,
   onLogout,
+  onEditProfile,
   onAddLesson,
   onEditLesson,
   onOpenAvailability,
@@ -105,7 +106,10 @@ export function TeacherLessonsPage({
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Painel da professora</p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{profile.nome}</h1>
         </div>
-        <Button variant="secondary" onClick={onLogout}>Sair</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
+          <Button variant="ghost" onClick={onLogout}>Sair</Button>
+        </div>
       </header>
 
       <nav className="grid gap-3 sm:grid-cols-3" aria-label="Ações do painel">
