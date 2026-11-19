@@ -9,10 +9,11 @@ import { LoadingState } from '../../components/LoadingState.jsx';
 import { getSupabaseErrorMessage, STATUS } from '../../lib/status.js';
 
 /**
- * @param {{ profile: {id: string, nome: string, slug: string, antecedencia_cancelamento_horas: number}, onLogout: () => void, onAddLesson: () => void, onEditLesson: (lesson: object) => void, onOpenAvailability: () => void, onOpenAgenda: () => void, onSaveLeadTime: (hours: number) => Promise<void> }} props
+ * @param {{ profile: {id: string, nome: string, slug: string, antecedencia_cancelamento_horas: number}, notice?: string, onLogout: () => void, onAddLesson: () => void, onEditLesson: (lesson: object) => void, onOpenAvailability: () => void, onOpenAgenda: () => void, onSaveLeadTime: (hours: number) => Promise<void> }} props
  */
 export function TeacherLessonsPage({
   profile,
+  notice,
   onLogout,
   onAddLesson,
   onEditLesson,
@@ -114,6 +115,7 @@ export function TeacherLessonsPage({
       </nav>
 
       <Card>
+        {notice && <p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900" role="status" aria-live="polite">{notice}</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold">Aulas oferecidas</h2>

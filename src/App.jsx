@@ -7,6 +7,7 @@ import { Input } from './components/Input.jsx';
 import { LoadingState } from './components/LoadingState.jsx';
 import { useAppContext } from './context/AppContext.jsx';
 import { TeacherLessonsPage } from './features/teacher/TeacherLessonsPage.jsx';
+import { TeacherLessonFormPage } from './features/teacher/TeacherLessonFormPage.jsx';
 import { loadOrCreateTeacherProfile } from './services/teacherProfile.js';
 import { getSupabaseErrorMessage, STATUS } from './lib/status.js';
 
@@ -33,6 +34,8 @@ export function App() {
   const [name, setName] = useState('Mariana Duarte');
   const [formBusy, setFormBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
+  const [editingLesson, setEditingLesson] = useState(null);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     if (authStatus === STATUS.LOADING || !session?.user) return;
@@ -96,18 +99,43 @@ export function App() {
     setProfile((current) => ({ ...current, antecedencia_cancelamento_horas: hours }));
   }
 
+  async function saveLesson(value) {
+    const values = {
+      nome: value.nome,
+      duracao_min: value.duracao,
+      preco: value.preco.toFixed(2),
+      ativo: true,
+    };
+    const result = value.id
+      ? await supabase.from('aulas').update(values).eq('id', value.id).eq('professora_id', user.id)
+      : await supabase.from('aulas').insert({ ...values, professora_id: user.id });
+    if (result.error) throw result.error;
+    setNotice(value.id ? 'Aula atualizada.' : 'Aula cadastrada.');
+    setView('teacher');
+  }
+
   if (authStatus === STATUS.LOADING) return <LoadingState label="Verificando sua sessão" />;
   if (view === 'error') return <main className="mx-auto max-w-xl p-5"><ErrorState message={authError || 'Não foi possível abrir o painel.'} onRetry={() => window.location.reload()} /></main>;
   if (view === 'teacher' && profile) {
     return (
       <TeacherLessonsPage
         profile={profile}
+        notice={notice}
         onLogout={logout}
-        onAddLesson={() => setView('lesson-form')}
-        onEditLesson={() => setView('lesson-form')}
+        onAddLesson={() => { setEditingLesson(null); setView('lesson-form'); }}
+        onEditLesson={(lesson) => { setEditingLesson(lesson); setView('lesson-form'); }}
         onOpenAvailability={() => setView('availability')}
         onOpenAgenda={() => setView('agenda')}
         onSaveLeadTime={saveLeadTime}
+      />
+    );
+  }
+  if (view === 'lesson-form' && user) {
+    return (
+      <TeacherLessonFormPage
+        lesson={editingLesson || undefined}
+        onSave={saveLesson}
+        onCancel={() => setView('teacher')}
       />
     );
   }
