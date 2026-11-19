@@ -8,6 +8,8 @@ import { LoadingState } from './components/LoadingState.jsx';
 import { useAppContext } from './context/AppContext.jsx';
 import { TeacherLessonsPage } from './features/teacher/TeacherLessonsPage.jsx';
 import { TeacherLessonFormPage } from './features/teacher/TeacherLessonFormPage.jsx';
+import { TeacherAvailabilityPage } from './features/teacher/TeacherAvailabilityPage.jsx';
+import { TeacherDailyAgendaPage } from './features/teacher/TeacherDailyAgendaPage.jsx';
 import { StudentBookingPage } from './features/student/StudentBookingPage.jsx';
 import { loadOrCreateTeacherProfile } from './services/teacherProfile.js';
 import { getSupabaseErrorMessage, STATUS } from './lib/status.js';
@@ -141,6 +143,12 @@ export function App() {
         onCancel={() => setView('teacher')}
       />
     );
+  }
+  if (view === 'availability' && profile) {
+    return <TeacherAvailabilityPage profile={profile} onBack={() => setView('teacher')} />;
+  }
+  if (view === 'agenda' && profile) {
+    return <TeacherDailyAgendaPage profile={profile} onBack={() => setView('teacher')} />;
   }
   if (view === 'public') {
     return (
