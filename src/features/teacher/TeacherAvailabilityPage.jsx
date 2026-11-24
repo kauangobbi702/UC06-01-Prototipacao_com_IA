@@ -152,7 +152,7 @@ export function TeacherAvailabilityPage({ profile, onBack }) {
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <h2 className="text-xl font-bold">Disponibilidade semanal</h2>
-          <p className="mt-1 text-sm text-muted">Defina os períodos em que alunos podem agendar.</p>
+          <p className="mt-1 text-sm text-muted">Defina os períodos disponíveis para agendamento.</p>
           <form onSubmit={addAvailability} className="mt-4 space-y-4">
             <Input label="Dia da semana" name="weekday" type="select" value={weekday} onChange={setWeekday} options={WEEKDAYS} required />
             <div className="grid grid-cols-2 gap-3">
@@ -167,7 +167,7 @@ export function TeacherAvailabilityPage({ profile, onBack }) {
                 <span className="text-sm font-medium">{WEEKDAYS.find((day) => day.value === item.dia_semana)?.label} · {item.hora_inicio.slice(0, 5)}–{item.hora_fim.slice(0, 5)}</span>
                 <Button variant="danger" onClick={() => removeRow('disponibilidades', item.id)}>Remover</Button>
               </div>
-            )) : <EmptyState title="Sem faixas cadastradas" description="Adicione seus horários semanais para que apareçam aos alunos." />}
+            )) : <EmptyState title="Sem faixas cadastradas" description="Adicione seus horários semanais para que apareçam no catálogo de aulas." />}
           </div>
         </Card>
 

@@ -30,17 +30,17 @@ A árvore abaixo representa a navegação e o que cada ação faz no app. A prof
 EnglishFlow [0]
 ├── Inicialização e roteamento [1]
 │   ├── Configuração Supabase ausente [2] → mostra erro; não simula gravação [3]
-│   ├── URL com ?professora=<slug> [2] → abre fluxo público do aluno [3]
+│   ├── URL com ?professora=<slug> [2] → abre o catálogo público e pré-seleciona o perfil [3]
 │   ├── Sessão Supabase ativa [2] → consulta papel e garante perfil via RPC [3]
 │   └── Sem sessão e sem link público [2] → abre tela inicial [3]
 │
 ├── Tela inicial [1]
-│   ├── Professora [2] → entrar/criar conta → Auth → perfil professora → painel [3]
-│   └── Aluno [2] → entrar/criar conta → consentimento → perfil aluno → “Minhas aulas” [3]
+│   ├── Professor(a) [2] → entrar/criar conta → Auth → perfil → painel [3]
+│   └── Aluno(a) [2] → explorar professores e aulas ou entrar/criar conta → consentimento → “Minhas aulas” [3]
 │       ├── Esqueci minha senha [3] → solicitação de recuperação por e-mail [4]
 │       └── Confirmação de e-mail habilitada no Supabase [3] → confirmar endereço e entrar [4]
 │
-├── Painel da professora [1] (requer autenticação)
+├── Painel do(a) Professor(a) [1] (requer autenticação)
 │   ├── Salvar prazo de alteração [2]
 │   │   ├── Validar valor inteiro entre 0 e 72 horas [3]
 │   │   └── Atualizar perfil da professora [4]
@@ -60,7 +60,7 @@ EnglishFlow [0]
 │   ├── Abrir link público [2] → abre fluxo do aluno com o slug da professora [3]
 │   └── Sair [2] → encerrar sessão Supabase e voltar à tela inicial [3]
 │
-├── Tela de disponibilidade da professora [1] (acessada pelo painel)
+├── Tela de disponibilidade do(a) Professor(a) [1] (acessada pelo painel)
 │   ├── Adicionar faixa semanal [2]
 │   │   ├── Validar dia e horários; impedir sobreposição [3]
 │   │   └── Inserir em disponibilidades [4]
@@ -70,20 +70,21 @@ EnglishFlow [0]
 │   │   └── Inserir em bloqueios [4]
 │   └── Remover bloqueio [2] → excluir de bloqueios [3] → lista atualizada [4]
 │
-├── Tela de aulas agendadas da professora [1] (acessada pelo painel)
+├── Tela de aulas agendadas do(a) Professor(a) [1] (acessada pelo painel)
 │   ├── Listar reservas pendentes/confirmadas [2] → consultar agendamentos [3]
 │   ├── Confirmar reserva [2] → atualizar status para confirmado [3] → agenda atualizada [4]
 │   ├── Marcar como concluída [2] → atualizar status para concluído [3] → agenda atualizada [4]
 │   └── Cancelar reserva [2] → atualizar status para cancelado [3] → agenda atualizada [4]
 │
 ├── Fluxo público de agendamento [1] (catálogo público; conta exigida para reservar)
-│   ├── Carregar link da professora [2] → buscar perfil público, aulas ativas e antecedência [3] → exibir catálogo [4]
+│   ├── Carregar catálogo [2] → listar perfis com aulas ativas e respectivas regras [3]
+│   ├── Escolher Professor(a) [2] → exibir somente suas aulas ativas [3]
 │   ├── Escolher tipo de aula [2] → consultar horários livres nos próximos 14 dias [3]
 │   ├── Escolher dia e horário [2] → atualizar seleção na tela [3] → mostrar horário selecionado [4]
 │   ├── Continuar para login [2] → preservar aula/data/horário na URL [3] → retomar seleção após autenticar [4]
 │   └── Confirmar reserva [2] → RPC criar_agendamento valida conta, consentimento e disponibilidade [3] → gravar reserva [4]
 │
-└── Área do aluno [1] (requer autenticação)
+└── Área do(a) Aluno(a) [1] (requer autenticação)
     ├── Minhas aulas [2] → listar reservas próprias por RPC [3] → exibir horários e status [4]
     ├── Cancelar [2] → confirmar e chamar RPC por ID com validação de propriedade [3] → liberar horário [4]
     ├── Reagendar [2] → escolher horário e chamar RPC por ID com validação de propriedade [3] → atualizar reserva [4]
@@ -106,7 +107,7 @@ O front-end usa exclusivamente a URL HTTPS e a chave anon/publishable. `SUPABASE
 - Conecte o repositório ao Lovable e mantenha a sincronização Git habilitada; revise cada alteração antes de aceitar o commit gerado.
 - Configure apenas as variáveis públicas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` nas configurações de ambiente do preview/deploy. Não cole `.env`, `service_role`, access token ou senha do banco no chat do Lovable.
 - Após publicar, no Supabase abra **Authentication → URL Configuration**; defina a URL publicada como **Site URL** e adicione-a também em **Redirect URLs** (incluindo os domínios de preview que realmente forem usados).
-- Teste o link `https://<dominio-publicado>/?professora=<slug>` no ambiente publicado, incluindo login do aluno e retorno ao horário selecionado.
+- Teste o catálogo público no ambiente publicado, incluindo a escolha de Professor(a), aula, login do(a) Aluno(a) e retorno ao horário selecionado. Links antigos com `?professora=<slug>` continuam pré-selecionando o perfil.
 
 ### Prints das 4 telas
 

@@ -29,9 +29,9 @@ async function loadSlots(booking) {
 }
 
 /**
- * @param {{ onEditProfile: () => void, onLogout: () => void }} props
+ * @param {{ onBrowseLessons: () => void, onEditProfile: () => void, onLogout: () => void }} props
  */
-export function StudentDashboardPage({ onEditProfile, onLogout }) {
+export function StudentDashboardPage({ onBrowseLessons, onEditProfile, onLogout }) {
   const [bookings, setBookings] = useState([]);
   const [status, setStatus] = useState(STATUS.LOADING);
   const [error, setError] = useState('');
@@ -122,10 +122,11 @@ export function StudentDashboardPage({ onEditProfile, onLogout }) {
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6 lg:py-10">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Área do aluno</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Área do(a) Aluno(a)</p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Minhas aulas</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={onBrowseLessons}>Ver Professores(as) e aulas</Button>
           <Button variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
           <Button variant="ghost" onClick={onLogout}>Sair</Button>
         </div>
@@ -133,7 +134,7 @@ export function StudentDashboardPage({ onEditProfile, onLogout }) {
 
       <Card>
         <p className="text-sm text-muted">
-          Para contratar uma aula, abra o link público compartilhado pela professora. Seus agendamentos ficarão vinculados a esta conta.
+          Escolha um(a) Professor(a) e uma das aulas oferecidas para agendar. Seus agendamentos ficarão vinculados a esta conta.
         </p>
       </Card>
 
@@ -144,7 +145,7 @@ export function StudentDashboardPage({ onEditProfile, onLogout }) {
       )}
       {status === STATUS.LOADING && <LoadingState label="Carregando suas aulas" rows={2} />}
       {status === STATUS.ERROR && <ErrorState message={error} onRetry={loadBookings} />}
-      {status === STATUS.EMPTY && <EmptyState title="Você ainda não tem aulas" description="Abra o link da professora para escolher uma aula e um horário disponível." />}
+      {status === STATUS.EMPTY && <EmptyState title="Você ainda não tem aulas" description="Explore a lista de Professores(as) para encontrar aulas e horários disponíveis." />}
       {status === STATUS.SUCCESS && (
         <ul className="space-y-3">
           {bookings.map((booking) => {
@@ -157,7 +158,7 @@ export function StudentDashboardPage({ onEditProfile, onLogout }) {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="font-semibold">{booking.aula_nome}</h2>
-                      <p className="mt-1 text-sm text-muted">Professora {booking.professora_nome}</p>
+                      <p className="mt-1 text-sm text-muted">Professor(a) {booking.professora_nome}</p>
                       <p className="mt-1 text-sm text-muted">{formatLocalDate(local.date, { dateStyle: 'long' })} às {local.time}</p>
                     </div>
                     <Badge status={booking.status}>{booking.status}</Badge>

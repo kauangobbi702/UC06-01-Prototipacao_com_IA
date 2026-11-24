@@ -21,7 +21,7 @@ export function getSupabaseErrorMessage(error) {
   }
   if (code === '42501') return 'Você não tem permissão para executar esta ação.';
   if (/prazo.*encerrado/i.test(message)) {
-    return 'O prazo para alterar esta aula já terminou. Fale com a professora.';
+    return 'O prazo para alterar esta aula já terminou. Entre em contato com o(a) Professor(a).';
   }
   if (code === 'P0002') return 'Não encontramos o perfil, aula ou agendamento solicitado.';
   if (code === 'P0001') return 'Não foi possível concluir esta ação. Confira os dados e tente novamente.';

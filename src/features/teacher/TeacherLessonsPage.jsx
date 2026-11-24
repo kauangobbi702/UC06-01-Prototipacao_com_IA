@@ -103,7 +103,7 @@ export function TeacherLessonsPage({
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">Painel da professora</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-primary">Painel do(a) Professor(a)</p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{profile.nome}</h1>
         </div>
         <div className="flex gap-2">
@@ -123,7 +123,7 @@ export function TeacherLessonsPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold">Aulas oferecidas</h2>
-            <p className="mt-1 text-sm text-muted">Cadastre os tipos de aula que seus alunos podem agendar.</p>
+            <p className="mt-1 text-sm text-muted">Cadastre os tipos de aula disponíveis para agendamento.</p>
           </div>
           <Button onClick={onAddLesson}>+ Nova aula</Button>
         </div>

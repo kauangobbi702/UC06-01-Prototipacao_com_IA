@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../../supabase.js';
 import { Badge } from '../../components/Badge.jsx';
 import { Button } from '../../components/Button.jsx';
@@ -38,13 +38,12 @@ async function queryAvailableSlots(teacher, lessonId, leadTime) {
 }
 
 /**
- * @param {{ role: string|null, user: object|null, onRequireAuth: (selection?: {aulaId: string, date: string, inicio: string}) => void, onOpenTeacherPanel: () => void }} props
+ * @param {{ role: string|null, user: object|null, onRequireAuth: (selection?: {aulaId: string, date: string, inicio: string, professorSlug: string}) => void, onOpenTeacherPanel: () => void, onBack: () => void }} props
  */
-export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPanel }) {
+export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPanel, onBack }) {
   const query = new URLSearchParams(window.location.search);
-  const [teacher, setTeacher] = useState(null);
-  const [lessons, setLessons] = useState([]);
-  const [leadTime, setLeadTime] = useState(12);
+  const [teachers, setTeachers] = useState([]);
+  const [selectedTeacherSlug, setSelectedTeacherSlug] = useState(getSlug());
   const [pageStatus, setPageStatus] = useState(STATUS.LOADING);
   const [pageError, setPageError] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState(query.get('aula') || '');
@@ -62,74 +61,84 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
   const [rescheduleFor, setRescheduleFor] = useState('');
   const [rescheduleSlot, setRescheduleSlot] = useState('');
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
+  const slotsRequestId = useRef(0);
 
+  const teacher = teachers.find((item) => item.slug === selectedTeacherSlug);
+  const lessons = teacher?.lessons || [];
+  const leadTime = teacher?.antecedencia_cancelamento_horas ?? 12;
   const selectedLesson = lessons.find((lesson) => lesson.aula_id === selectedLessonId);
   const availableDates = useMemo(() => [...new Set(slots.map((slot) => slot.date))], [slots]);
 
   const loadCatalog = useCallback(async () => {
-    const slug = getSlug();
-    if (!slug) {
-      setPageError('Este link não contém o identificador da professora.');
-      setPageStatus(STATUS.ERROR);
-      return;
-    }
     setPageStatus(STATUS.LOADING);
     setPageError('');
 
-    const { data: teacherData, error: teacherError } = await supabase
-      .from('perfis_publicos')
-      .select('slug,nome')
-      .eq('slug', slug)
-      .maybeSingle();
-    if (teacherError) {
-      setPageError(getSupabaseErrorMessage(teacherError));
-      setPageStatus(STATUS.ERROR);
-      return;
-    }
-    if (!teacherData) {
-      setPageError('Não encontramos esta professora. Confira o link e tente novamente.');
-      setPageStatus(STATUS.ERROR);
-      return;
-    }
-
-    const [lessonsResult, rulesResult] = await Promise.all([
-      supabase.from('aulas_publicas')
-        .select('aula_id,nome,duracao_min,preco')
-        .eq('slug', slug)
-        .order('nome'),
-      supabase.from('regras_agendamento_publicas')
-        .select('antecedencia_cancelamento_horas')
-        .eq('slug', slug)
-        .single(),
+    const [teachersResult, lessonsResult, rulesResult] = await Promise.all([
+      supabase.from('perfis_publicos').select('slug,nome').order('nome'),
+      supabase.from('aulas_publicas').select('slug,aula_id,nome,duracao_min,preco').order('nome'),
+      supabase.from('regras_agendamento_publicas').select('slug,antecedencia_cancelamento_horas'),
     ]);
-    const error = lessonsResult.error || rulesResult.error;
+    const error = teachersResult.error || lessonsResult.error || rulesResult.error;
     if (error) {
       setPageError(getSupabaseErrorMessage(error));
       setPageStatus(STATUS.ERROR);
       return;
     }
-    setTeacher(teacherData);
-    setLessons(lessonsResult.data || []);
-    setLeadTime(rulesResult.data.antecedencia_cancelamento_horas);
-    setPageStatus(lessonsResult.data?.length ? STATUS.SUCCESS : STATUS.EMPTY);
+
+    const lessonsBySlug = new Map();
+    for (const lesson of lessonsResult.data || []) {
+      const teacherLessons = lessonsBySlug.get(lesson.slug) || [];
+      teacherLessons.push(lesson);
+      lessonsBySlug.set(lesson.slug, teacherLessons);
+    }
+    const rulesBySlug = new Map((rulesResult.data || []).map((rule) => [
+      rule.slug,
+      rule.antecedencia_cancelamento_horas,
+    ]));
+    const availableTeachers = (teachersResult.data || [])
+      .map((item) => ({
+        ...item,
+        lessons: lessonsBySlug.get(item.slug) || [],
+        antecedencia_cancelamento_horas: rulesBySlug.get(item.slug),
+      }));
+    if (availableTeachers.some((item) => item.antecedencia_cancelamento_horas == null)) {
+      setPageError('Não foi possível carregar as regras de agendamento de todos os perfis.');
+      setPageStatus(STATUS.ERROR);
+      return;
+    }
+    const requestedTeacher = availableTeachers.find((item) => item.slug === getSlug());
+    const initialTeacher = requestedTeacher || availableTeachers[0];
+    const requestedLessonId = query.get('aula');
+
+    setTeachers(availableTeachers);
+    setSelectedTeacherSlug(initialTeacher?.slug || '');
+    setSelectedLessonId(initialTeacher?.lessons.some((lesson) => lesson.aula_id === requestedLessonId)
+      ? requestedLessonId
+      : '');
+    setPageStatus(availableTeachers.length ? STATUS.SUCCESS : STATUS.EMPTY);
   }, []);
 
   const loadSlots = useCallback(async (lessonId = selectedLessonId) => {
+    const requestId = ++slotsRequestId.current;
     if (!lessonId || !teacher) {
       setSlots([]);
       setSlotStatus(STATUS.EMPTY);
+      setSelectedDate('');
+      setSelectedStart('');
       return [];
     }
     setSlotStatus(STATUS.LOADING);
     setSlotError('');
     try {
       const nextSlots = await queryAvailableSlots(teacher, lessonId, leadTime);
+      if (requestId !== slotsRequestId.current) return [];
       setSlots(nextSlots);
       setSlotStatus(nextSlots.length ? STATUS.SUCCESS : STATUS.EMPTY);
       setSelectedDate((current) => nextSlots.some((slot) => slot.date === current) ? current : (nextSlots[0]?.date || ''));
       setSelectedStart((current) => nextSlots.some((slot) => slot.inicio === current) ? current : '');
       return nextSlots;
     } catch (error) {
+      if (requestId !== slotsRequestId.current) return [];
       setSlotError(getSupabaseErrorMessage(error));
       setSlotStatus(STATUS.ERROR);
       return [];
@@ -158,7 +167,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
   }, [loadCatalog]);
 
   useEffect(() => {
-    if (teacher && selectedLessonId) loadSlots(selectedLessonId);
+    if (teacher) loadSlots(selectedLessonId);
   }, [loadSlots, selectedLessonId, teacher]);
 
   useEffect(() => {
@@ -168,7 +177,12 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
   async function bookLesson(event) {
     event.preventDefault();
     if (!user || role !== 'aluno') {
-      onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart });
+      onRequireAuth({
+        aulaId: selectedLessonId,
+        date: selectedDate,
+        inicio: selectedStart,
+        professorSlug: teacher?.slug || '',
+      });
       return;
     }
     if (!selectedLesson || !selectedStart || !consentAccepted) {
@@ -192,7 +206,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
     } else {
       setSelectedStart('');
       setConsentAccepted(false);
-      setNotice(`Aula ${selectedLesson.nome} confirmada com ${teacher.nome} para ${formatLocalDate(selectedDate, { dateStyle: 'medium' })} às ${selectedTime?.time || ''} · ${PRICE_FORMATTER.format(Number(selectedLesson.preco))}.`);
+      setNotice(`Aula ${selectedLesson.nome} confirmada com Professor(a) ${teacher.nome} para ${formatLocalDate(selectedDate, { dateStyle: 'medium' })} às ${selectedTime?.time || ''} · ${PRICE_FORMATTER.format(Number(selectedLesson.preco))}.`);
       setNoticeIsError(false);
       await Promise.all([loadSlots(selectedLessonId), loadBookings()]);
     }
@@ -258,23 +272,26 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
       {pageErrorState ? (
         <ErrorState message={pageError} onRetry={loadCatalog} />
       ) : pageStatus === STATUS.LOADING ? (
-        <LoadingState label="Carregando aulas da professora" />
+        <LoadingState label="Carregando professores e aulas" />
       ) : (
         <>
           <header className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-accent">Agendamento</p>
-              <h1 className="mt-1 text-2xl font-bold">{teacher?.nome}</h1>
+              <h1 className="mt-1 text-2xl font-bold">Professores e aulas</h1>
               <p className="text-sm text-muted">Horários no fuso de São Paulo</p>
             </div>
-            {user && (
-              <Button
-                variant="secondary"
-                onClick={role === 'aluno' ? () => onRequireAuth() : onOpenTeacherPanel}
-              >
-                {role === 'aluno' ? 'Minha conta' : 'Acessar painel'}
-              </Button>
-            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onBack}>{user && role === 'aluno' ? 'Minhas aulas' : 'Início'}</Button>
+              {user && (
+                <Button
+                  variant="secondary"
+                  onClick={role === 'aluno' ? () => onRequireAuth() : onOpenTeacherPanel}
+                >
+                  {role === 'aluno' ? 'Minha conta' : 'Acessar painel'}
+                </Button>
+              )}
+            </div>
           </header>
 
           {notice && (
@@ -284,35 +301,59 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
           )}
 
           {pageStatus === STATUS.EMPTY ? (
-            <EmptyState title="Ainda não há aulas disponíveis" description="A professora ainda não cadastrou aulas ativas para agendamento." />
+            <EmptyState title="Ainda não há perfis de Professor(a)" description="Quando houver perfis disponíveis, eles aparecerão aqui com suas aulas." />
           ) : (
             <>
               <Card>
-                <h2 className="text-xl font-bold">Escolha sua aula</h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {lessons.map((lesson) => {
-                    const selected = lesson.aula_id === selectedLessonId;
-                    return (
-                      <button
-                        key={lesson.aula_id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => {
-                          setSelectedLessonId(lesson.aula_id);
-                          setSelectedDate('');
-                          setSelectedStart('');
-                        }}
-                        className={`min-h-20 rounded-xl border-2 p-4 text-left transition ${selected ? 'border-accent bg-cyan-50 ring-2 ring-accent/20' : 'border-border bg-surface hover:border-accent/60'}`}
-                      >
-                        <span className="block font-semibold">{lesson.nome}</span>
-                        <span className="mt-1 block text-sm text-muted">{lesson.duracao_min} min · {PRICE_FORMATTER.format(Number(lesson.preco))}</span>
-                        <span className="mt-2 inline-flex text-xs font-semibold text-accent">{selected ? 'Selecionada' : 'Escolher'}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <h2 className="text-xl font-bold">Escolha um(a) Professor(a) e uma aula</h2>
+                <label className="mt-4 block text-sm font-medium">
+                  Professor(a)
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-xl border border-border bg-surface px-3 text-base"
+                    value={selectedTeacherSlug}
+                    onChange={(event) => {
+                      setSelectedTeacherSlug(event.target.value);
+                      setSelectedLessonId('');
+                      setSelectedDate('');
+                      setSelectedStart('');
+                    }}
+                  >
+                    {teachers.map((item) => (
+                      <option key={item.slug} value={item.slug}>{item.nome}</option>
+                    ))}
+                  </select>
+                </label>
+                <h3 className="mt-5 font-semibold">Aulas oferecidas por {teacher?.nome}</h3>
+                {lessons.length ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {lessons.map((lesson) => {
+                      const selected = lesson.aula_id === selectedLessonId;
+                      return (
+                        <button
+                          key={lesson.aula_id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setSelectedLessonId(lesson.aula_id);
+                            setSelectedDate('');
+                            setSelectedStart('');
+                          }}
+                          className={`min-h-20 rounded-xl border-2 p-4 text-left transition ${selected ? 'border-accent bg-cyan-50 ring-2 ring-accent/20' : 'border-border bg-surface hover:border-accent/60'}`}
+                        >
+                          <span className="block font-semibold">{lesson.nome}</span>
+                          <span className="mt-1 block text-sm text-muted">{lesson.duracao_min} min · {PRICE_FORMATTER.format(Number(lesson.preco))}</span>
+                          <span className="mt-2 inline-flex text-xs font-semibold text-accent">{selected ? 'Selecionada' : 'Escolher'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted">Este(a) Professor(a) ainda não cadastrou aulas ativas para agendamento.</p>
+                )}
               </Card>
 
+              {lessons.length > 0 && (
+                <>
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -370,16 +411,18 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                   </form>
                 ) : role === 'professora' ? (
                   <div className="mt-4">
-                    <p className="text-sm text-muted">Você está conectado como professora. Para reservar uma aula, saia dessa conta e entre ou crie uma conta de aluno.</p>
-                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart })}>Sair e entrar como aluno</Button>
+                    <p className="text-sm text-muted">Você está conectado como Professor(a). Para reservar uma aula, saia dessa conta e entre ou crie uma conta de Aluno(a).</p>
+                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart, professorSlug: teacher?.slug || '' })}>Sair e entrar como Aluno(a)</Button>
                   </div>
                 ) : (
                   <div className="mt-4">
-                    <p className="text-sm text-muted">Para confirmar a reserva e acompanhar suas aulas, entre ou crie uma conta de aluno.</p>
-                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart })}>Entrar ou criar conta de aluno</Button>
+                    <p className="text-sm text-muted">Para confirmar a reserva e acompanhar suas aulas, entre ou crie uma conta de Aluno(a).</p>
+                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart, professorSlug: teacher?.slug || '' })}>Entrar ou criar conta de Aluno(a)</Button>
                   </div>
                 )}
               </Card>
+                </>
+              )}
 
               {role === 'aluno' && (
                 <Card>

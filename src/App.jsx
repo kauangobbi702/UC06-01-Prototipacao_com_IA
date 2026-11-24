@@ -178,7 +178,7 @@ export function App() {
 
       if (authMode === 'signup') {
         if (authRole === 'aluno' && !studentConsent) {
-          throw new Error('Aceite o uso dos dados para criar sua conta de aluno.');
+          throw new Error('Aceite o uso dos dados para criar sua conta de Aluno(a).');
         }
         if (authRole === 'professora') {
           const normalizedSlug = slugify(slug || name);
@@ -371,7 +371,9 @@ export function App() {
     }
     if (selection) {
       const url = new URL(window.location.href);
-      url.searchParams.set('professora', publicSlugFromLocation());
+      const professorSlug = selection.professorSlug || publicSlugFromLocation();
+      if (professorSlug) url.searchParams.set('professora', professorSlug);
+      else url.searchParams.delete('professora');
       [['aula', selection.aulaId], ['data', selection.date], ['inicio', selection.inicio]]
         .forEach(([key, value]) => {
           if (value) url.searchParams.set(key, value);
@@ -433,7 +435,7 @@ export function App() {
     );
   }
   if (view === 'student' && profile && role === 'aluno') {
-    return <StudentDashboardPage onEditProfile={() => setView('profile')} onLogout={logout} />;
+    return <StudentDashboardPage onBrowseLessons={() => setView('public')} onEditProfile={() => setView('profile')} onLogout={logout} />;
   }
   if (view === 'profile' && profile && role) {
     return (
@@ -463,6 +465,7 @@ export function App() {
         user={user}
         onRequireAuth={requireAuth}
         onOpenTeacherPanel={() => setView('teacher')}
+        onBack={() => setView(profile && role === 'aluno' ? 'student' : 'home')}
       />
     );
   }
@@ -519,7 +522,7 @@ export function App() {
         <Card>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">{authRole === 'professora' ? 'Professora' : 'Aluno'}</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary">{authRole === 'professora' ? 'Professor(a)' : 'Aluno(a)'}</p>
               <h2 className="mt-1 text-2xl font-bold">{authHeading}</h2>
             </div>
             <Button variant="ghost" onClick={() => setView(hasPublicSlug ? 'public' : 'home')}>Voltar</Button>
@@ -553,7 +556,7 @@ export function App() {
                   aria-pressed={authRole === option}
                   onClick={() => chooseAuthRole(option)}
                 >
-                  {option === 'professora' ? 'Professora' : 'Aluno'}
+                  {option === 'professora' ? 'Professor(a)' : 'Aluno(a)'}
                 </Button>
               ))}
             </div>
@@ -613,21 +616,21 @@ export function App() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
-            <p className="text-sm font-semibold uppercase tracking-wide text-primary">Professora</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary">Professor(a)</p>
             <h2 className="mt-2 text-xl font-bold">Registrar aulas e agenda</h2>
-            <Button className="mt-5 w-full" onClick={() => openAuth('professora', 'login')}>Acesso da professora</Button>
-            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('professora', 'signup')}>Criar conta de professora</Button>
+            <Button className="mt-5 w-full" onClick={() => openAuth('professora', 'login')}>Acesso do(a) Professor(a)</Button>
+            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('professora', 'signup')}>Criar conta de Professor(a)</Button>
           </Card>
           <Card>
-            <p className="text-sm font-semibold uppercase tracking-wide text-accent">Aluno</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-accent">Aluno(a)</p>
             <h2 className="mt-2 text-xl font-bold">Contratar e acompanhar aulas</h2>
             {hasPublicSlug ? (
               <Button className="mt-5 w-full" onClick={() => setView('public')}>Voltar ao agendamento</Button>
             ) : (
-              <p className="mt-2 text-sm text-muted">Abra o link público compartilhado pela professora para contratar uma aula.</p>
+              <Button className="mt-5 w-full" onClick={() => setView('public')}>Ver Professores(as) e aulas</Button>
             )}
-            <Button variant="secondary" className="mt-3 w-full" onClick={() => openAuth('aluno', 'login')}>Entrar como aluno</Button>
-            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('aluno', 'signup')}>Criar conta de aluno</Button>
+            <Button variant="secondary" className="mt-3 w-full" onClick={() => openAuth('aluno', 'login')}>Entrar como Aluno(a)</Button>
+            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('aluno', 'signup')}>Criar conta de Aluno(a)</Button>
           </Card>
         </div>
       )}

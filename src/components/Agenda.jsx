@@ -45,7 +45,7 @@ export function Agenda({ bookings, date, onBookingAction }) {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-semibold">{booking.aula_nome || 'Aula'}</p>
-                        <p className="text-sm text-muted">{booking.aluno_nome || 'Aluno'} · {booking.startTime}–{booking.endTime}</p>
+                        <p className="text-sm text-muted">{booking.aluno_nome || 'Aluno(a)'} · {booking.startTime}–{booking.endTime}</p>
                       </div>
                       <Badge status={booking.status}>{booking.status}</Badge>
                     </div>
