@@ -8,11 +8,13 @@
 1. Em [supabase.com](https://supabase.com), crie um projeto, defina nome e senha fortes para o banco e escolha a região São Paulo quando disponível.
 2. Em **Project Settings → API**, copie a Project URL (somente a raiz `https://<project-ref>.supabase.co`, sem `/rest/v1`) e a chave **anon/publishable**. Não copie `service_role` para o navegador.
 3. Na raiz do projeto, copie `.env.example` para `.env` (`Copy-Item .env.example .env` no PowerShell) e informe apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para o front-end.
-4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: `20261117220000_booking_backend.sql`, `20261118191000_fixed_student_identity.sql` e `20261119120000_auth_roles_students.sql`. A última migration adiciona papéis imutáveis, contas de aluno, RLS e RPCs de agendamento por conta. Revise e aplique-a manualmente; ela não foi executada a partir deste workspace.
+4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: `20261117220000_booking_backend.sql`, `20261118191000_fixed_student_identity.sql`, `20261119120000_auth_roles_students.sql` e `20261124160000_grant_teacher_booking_student_id.sql`. A migration mais recente concede à agenda da professora leitura da referência do aluno; aplique-a também em projetos já configurados.
 5. Execute `npm install` e `npm run dev`; abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`). A dependência `@supabase/supabase-js` já está declarada em `package.json`.
-6. Configure os redirect URLs do Supabase Auth para desenvolvimento e produção. Se a confirmação de e-mail estiver ativa, confirme o endereço antes de entrar.
+6. Para este projeto de estudo, no Supabase abra **Authentication → Providers → Email** e desative **Confirm email**. Assim, novas contas podem entrar sem aguardar mensagem de confirmação. Configure também os redirect URLs do Supabase Auth para desenvolvimento e produção.
 
 O app não usa `localStorage` como banco de dados nem para armazenar tokens de agendamento. Sem URL e chave anon válidas, as telas informam a configuração ausente e não simulam gravações locais. Professora e aluno criam contas Supabase Auth; o papel é registrado uma única vez no banco e não pode ser alternado. No primeiro acesso, a RPC `garantir_perfil` cria ou recupera o perfil. A professora cadastra aulas, disponibilidade e bloqueios e compartilha o link público gerado no painel. O aluno acessa “Minhas aulas” com a mesma conta usada para agendar.
+
+Abrir um link público de agendamento sempre mostra a página da professora, mesmo quando há uma sessão de professora ativa no navegador. Para reservar nessa situação, use **Sair e entrar como aluno**; os papéis são separados e não podem ser alternados na mesma conta.
 
 O cliente Supabase está em `supabase.js` e cria o cliente com `createClient` usando somente URL/chave pública. `vite.config.js` aceita `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; somente esses valores são enviados ao bundle. A URL é validada para exigir HTTPS. O `.gitignore` ignora `.env` e arquivos `.env.*`, mantendo `.env.example` versionável.
 
@@ -36,7 +38,7 @@ EnglishFlow [0]
 │   ├── Professora [2] → entrar/criar conta → Auth → perfil professora → painel [3]
 │   └── Aluno [2] → entrar/criar conta → consentimento → perfil aluno → “Minhas aulas” [3]
 │       ├── Esqueci minha senha [3] → solicitação de recuperação por e-mail [4]
-│       └── Confirmação de e-mail [3] → confirmar endereço e entrar [4]
+│       └── Confirmação de e-mail habilitada no Supabase [3] → confirmar endereço e entrar [4]
 │
 ├── Painel da professora [1] (requer autenticação)
 │   ├── Salvar prazo de alteração [2]
@@ -89,7 +91,7 @@ EnglishFlow [0]
     └── Excluir conta [2] → confirmar exclusão [3] → remover dados e conta Auth [4]
 ```
 
-Se a confirmação de e-mail do Supabase estiver habilitada, a criação da conta termina com a solicitação de confirmação; depois de confirmar, entre para concluir o provisionamento do perfil.
+No ambiente de estudo, mantenha **Confirm email** desativado em **Supabase → Authentication → Providers → Email**. Se a opção estiver habilitada, o Supabase exige confirmação antes de criar a sessão e concluir o acesso; essa configuração é do projeto Supabase e não pode ser alterada pelo front-end.
 
 ## Backend Supabase (PostgreSQL 15)
 

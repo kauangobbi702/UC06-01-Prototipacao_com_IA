@@ -38,9 +38,9 @@ async function queryAvailableSlots(teacher, lessonId, leadTime) {
 }
 
 /**
- * @param {{ role: string|null, user: object|null, onRequireAuth: (selection?: {aulaId: string, date: string, inicio: string}) => void }} props
+ * @param {{ role: string|null, user: object|null, onRequireAuth: (selection?: {aulaId: string, date: string, inicio: string}) => void, onOpenTeacherPanel: () => void }} props
  */
-export function StudentBookingPage({ role, user, onRequireAuth }) {
+export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPanel }) {
   const query = new URLSearchParams(window.location.search);
   const [teacher, setTeacher] = useState(null);
   const [lessons, setLessons] = useState([]);
@@ -267,7 +267,14 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
               <h1 className="mt-1 text-2xl font-bold">{teacher?.nome}</h1>
               <p className="text-sm text-muted">Horários no fuso de São Paulo</p>
             </div>
-            {user && <Button variant="secondary" onClick={() => onRequireAuth()}>{role === 'aluno' ? 'Minha conta' : 'Acessar painel'}</Button>}
+            {user && (
+              <Button
+                variant="secondary"
+                onClick={role === 'aluno' ? () => onRequireAuth() : onOpenTeacherPanel}
+              >
+                {role === 'aluno' ? 'Minha conta' : 'Acessar painel'}
+              </Button>
+            )}
           </header>
 
           {notice && (
@@ -361,6 +368,11 @@ export function StudentBookingPage({ role, user, onRequireAuth }) {
                     </label>
                     <Button type="submit" className="w-full" loading={submitting}>Confirmar aula</Button>
                   </form>
+                ) : role === 'professora' ? (
+                  <div className="mt-4">
+                    <p className="text-sm text-muted">Você está conectado como professora. Para reservar uma aula, saia dessa conta e entre ou crie uma conta de aluno.</p>
+                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart })}>Sair e entrar como aluno</Button>
+                  </div>
                 ) : (
                   <div className="mt-4">
                     <p className="text-sm text-muted">Para confirmar a reserva e acompanhar suas aulas, entre ou crie uma conta de aluno.</p>

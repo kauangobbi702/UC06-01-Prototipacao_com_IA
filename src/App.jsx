@@ -145,9 +145,9 @@ export function App() {
         if (profileError) throw profileError;
         if (!active) return;
         setProfile(profileData);
-        setView(nextRole === 'professora'
-          ? 'teacher'
-          : (publicSlugFromLocation() ? 'public' : 'student'));
+        setView(publicSlugFromLocation()
+          ? 'public'
+          : (nextRole === 'professora' ? 'teacher' : 'student'));
       } catch (error) {
         if (!active) return;
         setAuthError(getSupabaseErrorMessage(error));
@@ -358,14 +358,16 @@ export function App() {
     setView('teacher');
   }
 
-  function requireAuth(selection) {
+  async function requireAuth(selection) {
     if (user && role === 'aluno') {
       setView('student');
       return;
     }
     if (user && role === 'professora') {
-      setView('teacher');
-      return;
+      if (!publicSlugFromLocation()) {
+        setView('teacher');
+        return;
+      }
     }
     if (selection) {
       const url = new URL(window.location.href);
@@ -377,8 +379,20 @@ export function App() {
         });
       window.history.replaceState(null, '', url);
     }
+    if (user && role === 'professora') {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setAuthError(getSupabaseErrorMessage(error));
+        setView('error');
+        return;
+      }
+      setProfile(null);
+      setRole(null);
+    }
     setAuthRole('aluno');
     setAuthMode('login');
+    setAuthMessage('');
+    setAuthError('');
     setView('auth');
   }
 
@@ -443,7 +457,14 @@ export function App() {
     return <TeacherDailyAgendaPage profile={profile} onBack={() => setView('teacher')} />;
   }
   if (view === 'public') {
-    return <StudentBookingPage role={role} user={user} onRequireAuth={requireAuth} />;
+    return (
+      <StudentBookingPage
+        role={role}
+        user={user}
+        onRequireAuth={requireAuth}
+        onOpenTeacherPanel={() => setView('teacher')}
+      />
+    );
   }
   if (view === 'student-consent') {
     return (
