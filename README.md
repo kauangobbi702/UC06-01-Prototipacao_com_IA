@@ -6,7 +6,7 @@
 ## Configuração e execução
 
 1. Em [supabase.com](https://supabase.com), crie um projeto, defina nome e senha fortes para o banco e escolha a região São Paulo quando disponível.
-2. Em **Project Settings → API**, copie a Project URL e a chave **anon/publishable**. Não copie `service_role` para o navegador.
+2. Em **Project Settings → API**, copie a Project URL (somente a raiz `https://<project-ref>.supabase.co`, sem `/rest/v1`) e a chave **anon/publishable**. Não copie `service_role` para o navegador.
 3. Na raiz do projeto, copie `.env.example` para `.env` (`Copy-Item .env.example .env` no PowerShell) e informe apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para o front-end.
 4. No **SQL Editor** do Supabase, execute os arquivos em `supabase/migrations` em ordem cronológica: `20261117220000_booking_backend.sql`, `20261118191000_fixed_student_identity.sql` e `20261119120000_auth_roles_students.sql`. A última migration adiciona papéis imutáveis, contas de aluno, RLS e RPCs de agendamento por conta. Revise e aplique-a manualmente; ela não foi executada a partir deste workspace.
 5. Execute `npm install` e `npm run dev`; abra no navegador o endereço local indicado pelo Vite (normalmente `http://localhost:5173`). A dependência `@supabase/supabase-js` já está declarada em `package.json`.
