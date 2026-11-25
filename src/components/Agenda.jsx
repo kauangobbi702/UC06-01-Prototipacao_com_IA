@@ -41,7 +41,7 @@ export function Agenda({ bookings, date, onBookingAction }) {
               <time className="border-r border-border px-3 py-4 text-sm text-muted">{time}</time>
               <div className="p-2">
                 {booking ? (
-                  <div className={`rounded-xl border p-3 ${booking.status === 'cancelado' ? 'border-border bg-bg' : 'border-primary/20 bg-primary/5'}`}>
+                  <div data-testid="agenda-item" className={`rounded-xl border p-3 ${booking.status === 'cancelado' ? 'border-border bg-bg' : 'border-primary/20 bg-primary/5'}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-semibold">{booking.aula_nome || 'Aula'}</p>
@@ -51,9 +51,9 @@ export function Agenda({ bookings, date, onBookingAction }) {
                     </div>
                     {onBookingAction && ['pendente', 'confirmado'].includes(booking.status) && (
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {booking.status === 'pendente' && <button type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary" onClick={() => onBookingAction(booking, 'confirmar')}>Confirmar</button>}
-                        {booking.status === 'confirmado' && <button type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary" onClick={() => onBookingAction(booking, 'concluir')}>Marcar como concluída</button>}
-                        <button type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-danger" onClick={() => onBookingAction(booking, 'cancelar')}>Cancelar</button>
+                        {booking.status === 'pendente' && <button data-testid="agenda-confirmar" type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary" onClick={() => onBookingAction(booking, 'confirmar')}>Confirmar</button>}
+                        {booking.status === 'confirmado' && <button data-testid="agenda-concluir" type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary" onClick={() => onBookingAction(booking, 'concluir')}>Marcar como concluída</button>}
+                        <button data-testid="agenda-cancelar" type="button" className="min-h-11 rounded-lg px-3 text-sm font-semibold text-danger" onClick={() => onBookingAction(booking, 'cancelar')}>Cancelar</button>
                       </div>
                     )}
                   </div>

@@ -29,6 +29,10 @@ function slugify(value) {
     .slice(0, 70);
 }
 
+function isValidSlug(value) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
 export function App() {
   const {
     session,
@@ -71,9 +75,13 @@ export function App() {
       return undefined;
     }
 
-    const candidate = slugify(slug);
+    const candidate = slug.trim();
     if (candidate.length < 3) {
       setSlugStatus({ state: 'idle', message: 'Informe ao menos 3 caracteres.' });
+      return undefined;
+    }
+    if (!isValidSlug(candidate)) {
+      setSlugStatus({ state: 'invalid', message: 'Use apenas letras minúsculas, números e hífens.' });
       return undefined;
     }
 
@@ -181,8 +189,11 @@ export function App() {
           throw new Error('Aceite o uso dos dados para criar sua conta de Aluno(a).');
         }
         if (authRole === 'professora') {
-          const normalizedSlug = slugify(slug || name);
+          const normalizedSlug = slugManuallyEdited ? slug.trim() : slugify(name);
           if (normalizedSlug.length < 3) throw new Error('O link público deve ter ao menos 3 caracteres.');
+          if (!isValidSlug(normalizedSlug)) {
+            throw new Error('Use apenas letras minúsculas, números e hífens.');
+          }
           const { data: available, error: slugError } = await supabase.rpc('slug_disponivel', {
             p_slug: normalizedSlug,
           });
@@ -196,7 +207,9 @@ export function App() {
           telefone: phone.trim() || null,
           aceite_lgpd: authRole === 'aluno' && studentConsent,
         };
-        if (authRole === 'professora') metadata.slug = slugify(slug || name);
+        if (authRole === 'professora') {
+          metadata.slug = slugManuallyEdited ? slug.trim() : slugify(name);
+        }
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -218,6 +231,12 @@ export function App() {
         setAuthError('Confirme seu e-mail pelo link recebido antes de entrar.');
       } else if (message === 'Invalid login credentials') {
         setAuthError('E-mail ou senha incorretos.');
+      } else if (
+        message.startsWith('Aceite o uso dos dados')
+        || message.startsWith('O link público')
+        || message.startsWith('Use apenas letras minúsculas')
+      ) {
+        setAuthError(message);
       } else {
         setAuthError(getSupabaseErrorMessage(error));
       }
@@ -476,10 +495,10 @@ export function App() {
           <h1 className="text-2xl font-bold">Consentimento para uso dos dados</h1>
           <p className="mt-3 text-sm text-muted">Usaremos seu nome e contato para identificar sua conta e administrar seus agendamentos, conforme a política de privacidade.</p>
           <label className="mt-5 flex items-start gap-3 text-sm text-muted">
-            <input type="checkbox" className="mt-1 h-4 w-4 accent-accent" checked={studentConsent} onChange={(event) => setStudentConsent(event.target.checked)} />
+            <input data-testid="field-lgpd" type="checkbox" className="mt-1 h-4 w-4 accent-accent" checked={studentConsent} onChange={(event) => setStudentConsent(event.target.checked)} />
             <span>Li e aceito o uso dos meus dados para gerenciar meus agendamentos (versão agendamento-v1).</span>
           </label>
-          {authError && <p className="mt-3 text-sm text-danger" role="alert">{authError}</p>}
+          {authError && <p className="mt-3 text-sm text-danger" role="alert" data-testid="auth-error">{authError}</p>}
           <Button className="mt-5 w-full" loading={formBusy} onClick={finishStudentConsent}>Continuar para minha conta</Button>
           <Button className="mt-2 w-full" variant="ghost" onClick={logout}>Sair</Button>
         </Card>
@@ -494,7 +513,7 @@ export function App() {
           <form className="mt-5 space-y-4" onSubmit={saveNewPassword}>
             <Input label="Nova senha" name="new-password" type="password" value={newPassword} onChange={setNewPassword} required autoComplete="new-password" />
             <Input label="Confirmar nova senha" name="new-password-confirmation" type="password" value={newPasswordConfirmation} onChange={setNewPasswordConfirmation} required autoComplete="new-password" />
-            {authError && <p className="text-sm text-danger" role="alert">{authError}</p>}
+            {authError && <p className="text-sm text-danger" role="alert" data-testid="auth-error">{authError}</p>}
             {authMessage && <p className="text-sm text-success" role="status">{authMessage}</p>}
             <Button type="submit" className="w-full" loading={formBusy}>Salvar nova senha</Button>
           </form>
@@ -531,6 +550,7 @@ export function App() {
             <div className="mt-4 grid grid-cols-2 gap-2" role="tablist" aria-label="Ação da conta">
               <Button
                 role="tab"
+                data-testid="auth-tab-entrar"
                 aria-selected={authMode === 'login'}
                 variant={authMode === 'login' ? 'primary' : 'secondary'}
                 onClick={() => { setAuthMode('login'); setAuthMessage(''); setAuthError(''); }}
@@ -539,6 +559,7 @@ export function App() {
               </Button>
               <Button
                 role="tab"
+                data-testid="auth-tab-criar"
                 aria-selected={authMode === 'signup'}
                 variant={authMode === 'signup' ? 'primary' : 'secondary'}
                 onClick={() => { setAuthMode('signup'); setAuthMessage(''); setAuthError(''); }}
@@ -553,6 +574,7 @@ export function App() {
                 <Button
                   key={option}
                   variant={authRole === option ? 'primary' : 'secondary'}
+                  data-testid={`role-${option}`}
                   aria-pressed={authRole === option}
                   onClick={() => chooseAuthRole(option)}
                 >
@@ -564,15 +586,16 @@ export function App() {
           <form className="mt-5 space-y-4" onSubmit={submitAuth}>
             {authMode === 'signup' && (
               <>
-                <Input label="Nome" name="nome" value={name} onChange={(value) => {
+                <Input label="Nome" name="nome" testId="field-nome" value={name} onChange={(value) => {
                   setName(value);
                   if (authRole === 'professora' && !slugManuallyEdited) setSlug(slugify(value));
                 }} required autoComplete="name" />
-                <Input label="Telefone (opcional)" name="telefone" type="tel" value={phone} onChange={setPhone} autoComplete="tel" />
+                <Input label="Telefone (opcional)" name="telefone" type="tel" testId="field-telefone" value={phone} onChange={setPhone} autoComplete="tel" />
                 {authRole === 'professora' && (
                   <Input
                     label="Link público desejado"
                     name="slug"
+                    testId="field-slug"
                     value={slug}
                     onChange={(value) => { setSlug(value); setSlugManuallyEdited(true); }}
                     required
@@ -592,13 +615,13 @@ export function App() {
                 )}
               </>
             )}
-            <Input label="E-mail" name="email" type="email" value={email} onChange={setEmail} required autoComplete="email" />
+            <Input label="E-mail" name="email" type="email" testId="field-email" value={email} onChange={setEmail} required autoComplete="email" />
             {authMode !== 'recovery' && (
-              <Input label="Senha" name="password" type="password" value={password} onChange={setPassword} required autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} />
+              <Input label="Senha" name="password" type="password" testId="field-senha" value={password} onChange={setPassword} required autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} />
             )}
-            {authError && <p className="text-sm text-danger" role="alert" aria-live="assertive">{authError}</p>}
+            {authError && <p className="text-sm text-danger" role="alert" aria-live="assertive" data-testid="auth-error">{authError}</p>}
             {authMessage && <p className="text-sm text-success" role="status" aria-live="polite">{authMessage}</p>}
-            <Button type="submit" loading={formBusy} className="w-full">
+            <Button data-testid="auth-submit" type="submit" loading={formBusy} className="w-full">
               {authMode === 'signup' ? 'Criar conta' : authMode === 'recovery' ? 'Enviar instruções' : 'Entrar'}
             </Button>
           </form>
@@ -619,7 +642,7 @@ export function App() {
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">Professor(a)</p>
             <h2 className="mt-2 text-xl font-bold">Registrar aulas e agenda</h2>
             <Button className="mt-5 w-full" onClick={() => openAuth('professora', 'login')}>Acesso do(a) Professor(a)</Button>
-            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('professora', 'signup')}>Criar conta de Professor(a)</Button>
+            <Button data-testid="home-professora" variant="ghost" className="mt-2 w-full" onClick={() => openAuth('professora', 'signup')}>Criar conta de Professor(a)</Button>
           </Card>
           <Card>
             <p className="text-sm font-semibold uppercase tracking-wide text-accent">Aluno(a)</p>
@@ -630,7 +653,7 @@ export function App() {
               <Button className="mt-5 w-full" onClick={() => setView('public')}>Ver Professores(as) e aulas</Button>
             )}
             <Button variant="secondary" className="mt-3 w-full" onClick={() => openAuth('aluno', 'login')}>Entrar como Aluno(a)</Button>
-            <Button variant="ghost" className="mt-2 w-full" onClick={() => openAuth('aluno', 'signup')}>Criar conta de Aluno(a)</Button>
+            <Button data-testid="home-aluno" variant="ghost" className="mt-2 w-full" onClick={() => openAuth('aluno', 'signup')}>Criar conta de Aluno(a)</Button>
           </Card>
         </div>
       )}

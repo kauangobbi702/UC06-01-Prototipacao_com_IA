@@ -6,11 +6,11 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 function currencyText(cents) {
-  return cents > 0 ? currencyFormatter.format(cents / 100) : '';
+  return cents !== 0 ? currencyFormatter.format(cents / 100) : '';
 }
 
 /**
- * @param {{ label: string, name: string, type?: string, value: string|number, onChange: (value: string|number) => void, error?: string, hint?: string, options?: Array<{value: string|number, label: string}>, required?: boolean, min?: number, max?: number, step?: number, placeholder?: string, autoComplete?: string, disabled?: boolean, id?: string, className?: string }} props
+ * @param {{ label: string, name: string, type?: string, value: string|number, onChange: (value: string|number) => void, error?: string, errorTestId?: string, testId?: string, hint?: string, options?: Array<{value: string|number, label: string}>, required?: boolean, min?: number, max?: number, step?: number, placeholder?: string, autoComplete?: string, disabled?: boolean, id?: string, className?: string }} props
  */
 export function Input({
   label,
@@ -19,6 +19,8 @@ export function Input({
   value,
   onChange,
   error,
+  errorTestId,
+  testId,
   hint,
   options = [],
   required = false,
@@ -43,6 +45,7 @@ export function Input({
     disabled,
     'aria-invalid': Boolean(error),
     'aria-describedby': describedBy,
+    'data-testid': testId,
     className: `mt-1.5 min-h-11 w-full rounded-xl border bg-surface px-3 text-base text-text placeholder:text-muted focus:border-accent disabled:opacity-60 ${error ? 'border-danger' : 'border-border'} ${className}`,
   };
 
@@ -66,8 +69,10 @@ export function Input({
         placeholder={placeholder || 'R$ 0,00'}
         value={currencyText(Number(value || 0))}
         onChange={(event) => {
-          const digits = event.target.value.replace(/\D/g, '').slice(0, 10);
-          onChange(digits ? Number(digits) : 0);
+          const text = event.target.value;
+          const digits = text.replace(/\D/g, '').slice(0, 10);
+          const amount = digits ? Number(digits) : 0;
+          onChange(text.includes('-') ? -amount : amount);
         }}
       />
     );
@@ -94,7 +99,7 @@ export function Input({
       </label>
       {control}
       {hint && <p id={hintId} className="mt-1 text-sm text-muted">{hint}</p>}
-      {error && <p id={errorId} className="mt-1 text-sm text-danger" role="alert">{error}</p>}
+      {error && <p id={errorId} data-testid={errorTestId} className="mt-1 text-sm text-danger" role="alert">{error}</p>}
     </div>
   );
 }

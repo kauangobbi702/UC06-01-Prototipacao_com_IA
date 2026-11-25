@@ -59,11 +59,11 @@ export function ProfilePage({ role, profile, user, onBack, onSave, onDelete }) {
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">Minha conta</p>
             <h1 className="mt-1 text-2xl font-bold">Editar perfil</h1>
           </div>
-          <Button variant="ghost" onClick={onBack}>Voltar</Button>
+          <Button data-testid="nav-painel" variant="ghost" onClick={onBack}>Voltar</Button>
         </div>
         <p className="mt-3 text-sm text-muted">Conta: {user.email}</p>
         {error && <p className="mt-4 text-sm text-danger" role="alert">{error}</p>}
-        {notice && <p className="mt-4 text-sm text-success" role="status">{notice}</p>}
+        {notice && <p className="mt-4 text-sm text-success" role="status" data-testid="toast-sucesso">{notice}</p>}
         <form className="mt-5 space-y-4" onSubmit={submit}>
           <Input label="Nome" name="nome" value={name} onChange={setName} required autoComplete="name" />
           {isTeacher && (
@@ -80,6 +80,7 @@ export function ProfilePage({ role, profile, user, onBack, onSave, onDelete }) {
             <Input
               label="Antecedência para alterações (horas)"
               name="antecedencia_cancelamento_horas"
+              testId="perfil-antecedencia"
               type="number"
               value={leadTime}
               onChange={setLeadTime}
@@ -98,12 +99,12 @@ export function ProfilePage({ role, profile, user, onBack, onSave, onDelete }) {
             onChange={setPhone}
             autoComplete="tel"
           />
-          <Button type="submit" className="w-full" loading={busy}>Salvar alterações</Button>
+          <Button data-testid="perfil-salvar" type="submit" className="w-full" loading={busy}>Salvar alterações</Button>
         </form>
         <div className="mt-8 border-t border-border pt-5">
           <h2 className="font-semibold text-danger">Excluir conta</h2>
           <p className="mt-1 text-sm text-muted">A exclusão remove os dados associados conforme a política de privacidade.</p>
-          <Button variant="danger" className="mt-3 w-full" disabled={busy} onClick={deleteAccount}>Excluir minha conta</Button>
+          <Button data-testid="perfil-excluir" variant="danger" className="mt-3 w-full" disabled={busy} onClick={deleteAccount}>Excluir minha conta</Button>
         </div>
       </Card>
     </main>

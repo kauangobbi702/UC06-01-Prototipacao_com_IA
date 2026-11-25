@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../supabase.js';
 import { Agenda } from '../../components/Agenda.jsx';
 import { Button } from '../../components/Button.jsx';
@@ -25,8 +25,10 @@ export function TeacherDailyAgendaPage({ profile, onBack }) {
   const [status, setStatus] = useState(STATUS.LOADING);
   const [errorMessage, setErrorMessage] = useState('');
   const [busyBookingId, setBusyBookingId] = useState('');
+  const requestId = useRef(0);
 
   const loadBookings = useCallback(async () => {
+    const currentRequestId = ++requestId.current;
     setStatus(STATUS.LOADING);
     setErrorMessage('');
     const { start, end } = dateBounds(date);
@@ -41,6 +43,7 @@ export function TeacherDailyAgendaPage({ profile, onBack }) {
       .gte('inicio', start)
       .lt('inicio', end)
       .order('inicio');
+    if (currentRequestId !== requestId.current) return;
     if (error) {
       setErrorMessage(getSupabaseErrorMessage(error));
       setStatus(STATUS.ERROR);
@@ -96,7 +99,7 @@ export function TeacherDailyAgendaPage({ profile, onBack }) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:py-10">
       <header className="flex flex-wrap items-center gap-3">
-        <Button variant="secondary" onClick={onBack}>Voltar</Button>
+        <Button data-testid="nav-painel" variant="secondary" onClick={onBack}>Voltar</Button>
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">{profile.nome}</p>
           <h1 className="text-2xl font-bold">Agenda do dia</h1>
@@ -107,7 +110,7 @@ export function TeacherDailyAgendaPage({ profile, onBack }) {
           <Button variant="secondary" aria-label="Dia anterior" onClick={() => shiftDate(-1)}>‹ Dia anterior</Button>
           <label className="min-w-48 flex-1 text-sm font-medium">
             Data da agenda
-            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border border-border bg-surface px-3" />
+            <input data-testid="agenda-data" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border border-border bg-surface px-3" />
           </label>
           <Button variant="secondary" aria-label="Próximo dia" onClick={() => shiftDate(1)}>Próximo dia ›</Button>
         </div>

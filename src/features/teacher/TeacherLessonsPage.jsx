@@ -100,22 +100,22 @@ export function TeacherLessonsPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-10">
+    <main data-testid="painel-professora" className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Painel do(a) Professor(a)</p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{profile.nome}</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
-          <Button variant="ghost" onClick={onLogout}>Sair</Button>
+          <Button data-testid="nav-perfil" variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
+          <Button data-testid="logout" variant="ghost" onClick={onLogout}>Sair</Button>
         </div>
       </header>
 
       <nav className="grid gap-3 sm:grid-cols-3" aria-label="Ações do painel">
         <Button variant="secondary" onClick={copyBookingLink}>{linkCopied ? 'Link copiado!' : 'Copiar link de agendamento'}</Button>
-        <Button variant="secondary" onClick={onOpenAvailability}>Disponibilidade e bloqueios</Button>
-        <Button variant="secondary" onClick={onOpenAgenda}>Agenda do dia</Button>
+        <Button data-testid="nav-disponibilidade" variant="secondary" onClick={onOpenAvailability}>Disponibilidade e bloqueios</Button>
+        <Button data-testid="nav-agenda" variant="secondary" onClick={onOpenAgenda}>Agenda do dia</Button>
       </nav>
 
       <Card>
@@ -125,7 +125,7 @@ export function TeacherLessonsPage({
             <h2 className="text-xl font-bold">Aulas oferecidas</h2>
             <p className="mt-1 text-sm text-muted">Cadastre os tipos de aula disponíveis para agendamento.</p>
           </div>
-          <Button onClick={onAddLesson}>+ Nova aula</Button>
+          <Button data-testid="aula-novo" onClick={onAddLesson}>+ Nova aula</Button>
         </div>
 
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={saveLeadTime}>

@@ -61,6 +61,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
   const [rescheduleFor, setRescheduleFor] = useState('');
   const [rescheduleSlot, setRescheduleSlot] = useState('');
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
+  const catalogInitialized = useRef(false);
   const slotsRequestId = useRef(0);
 
   const teacher = teachers.find((item) => item.slug === selectedTeacherSlug);
@@ -111,10 +112,13 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
     const requestedLessonId = query.get('aula');
 
     setTeachers(availableTeachers);
-    setSelectedTeacherSlug(initialTeacher?.slug || '');
-    setSelectedLessonId(initialTeacher?.lessons.some((lesson) => lesson.aula_id === requestedLessonId)
-      ? requestedLessonId
-      : '');
+    if (!catalogInitialized.current) {
+      catalogInitialized.current = true;
+      setSelectedTeacherSlug(initialTeacher?.slug || '');
+      setSelectedLessonId(initialTeacher?.lessons.some((lesson) => lesson.aula_id === requestedLessonId)
+        ? requestedLessonId
+        : '');
+    }
     setPageStatus(availableTeachers.length ? STATUS.SUCCESS : STATUS.EMPTY);
   }, []);
 
@@ -282,7 +286,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
               <p className="text-sm text-muted">Horários no fuso de São Paulo</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={onBack}>{user && role === 'aluno' ? 'Minhas aulas' : 'Início'}</Button>
+              <Button data-testid={user && role === 'aluno' ? 'nav-minhas-aulas' : undefined} variant="ghost" onClick={onBack}>{user && role === 'aluno' ? 'Minhas aulas' : 'Início'}</Button>
               {user && (
                 <Button
                   variant="secondary"
@@ -295,7 +299,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
           </header>
 
           {notice && (
-            <p className={`rounded-xl p-3 text-sm ${noticeIsError ? 'bg-rose-50 text-danger' : 'bg-emerald-50 text-emerald-900'}`} role={noticeIsError ? 'alert' : 'status'} aria-live={noticeIsError ? 'assertive' : 'polite'}>
+            <p data-testid={!noticeIsError ? 'reserva-confirmada' : undefined} className={`rounded-xl p-3 text-sm ${noticeIsError ? 'bg-rose-50 text-danger' : 'bg-emerald-50 text-emerald-900'}`} role={noticeIsError ? 'alert' : 'status'} aria-live={noticeIsError ? 'assertive' : 'polite'}>
               {notice}
             </p>
           )}
@@ -331,6 +335,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                       return (
                         <button
                           key={lesson.aula_id}
+                          data-testid="catalogo-aula"
                           type="button"
                           aria-pressed={selected}
                           onClick={() => {
@@ -385,6 +390,9 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                       {slots.filter((slot) => slot.date === selectedDate).map((slot) => (
                         <button
                           key={slot.inicio}
+                          data-testid="slot"
+                          data-date={slot.date}
+                          data-time={slot.time}
                           type="button"
                           aria-pressed={selectedStart === slot.inicio}
                           onClick={() => setSelectedStart(slot.inicio)}
@@ -404,10 +412,10 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                   <form className="mt-4 space-y-4" onSubmit={bookLesson}>
                     <p className="text-sm text-muted">Conta: {user.email}</p>
                     <label className="flex items-start gap-3 text-sm text-muted">
-                      <input type="checkbox" className="mt-1 h-4 w-4 accent-accent" checked={consentAccepted} onChange={(event) => setConsentAccepted(event.target.checked)} />
+                      <input data-testid="consentimento" type="checkbox" className="mt-1 h-4 w-4 accent-accent" checked={consentAccepted} onChange={(event) => setConsentAccepted(event.target.checked)} />
                       <span>Aceito o uso dos meus dados para gerenciar este agendamento (versão {PRIVACY_VERSION}).</span>
                     </label>
-                    <Button type="submit" className="w-full" loading={submitting}>Confirmar aula</Button>
+                    <Button data-testid="confirmar-reserva" type="submit" className="w-full" loading={submitting}>Confirmar aula</Button>
                   </form>
                 ) : role === 'professora' ? (
                   <div className="mt-4">
@@ -417,7 +425,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                 ) : (
                   <div className="mt-4">
                     <p className="text-sm text-muted">Para confirmar a reserva e acompanhar suas aulas, entre ou crie uma conta de Aluno(a).</p>
-                    <Button className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart, professorSlug: teacher?.slug || '' })}>Entrar ou criar conta de Aluno(a)</Button>
+                    <Button data-testid="continuar-login" className="mt-4 w-full" onClick={() => onRequireAuth({ aulaId: selectedLessonId, date: selectedDate, inicio: selectedStart, professorSlug: teacher?.slug || '' })}>Entrar ou criar conta de Aluno(a)</Button>
                   </div>
                 )}
               </Card>
@@ -448,7 +456,7 @@ export function StudentBookingPage({ role, user, onRequireAuth, onOpenTeacherPan
                               </div>
                               {['pendente', 'confirmado'].includes(booking.status) && canChange && (
                                 <div className="mt-4 flex flex-wrap gap-2">
-                                  <Button variant="secondary" onClick={() => changeBooking(booking, 'cancelar')}>Cancelar</Button>
+                                  <Button data-testid="btn-cancelar" variant="secondary" onClick={() => changeBooking(booking, 'cancelar')}>Cancelar</Button>
                                   <Button variant="secondary" onClick={() => changeBooking(booking, 'reagendar')}>Reagendar</Button>
                                 </div>
                               )}

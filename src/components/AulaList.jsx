@@ -23,7 +23,7 @@ export function AulaList({ lessons, onCreate, onEdit, onDelete }) {
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {lessons.map((lesson) => (
-        <li key={lesson.id}>
+        <li key={lesson.id} data-testid="aula-item">
           <Card as="article" className="h-full">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-semibold">{lesson.nome}</h2>

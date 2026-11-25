@@ -142,24 +142,24 @@ export function TeacherAvailabilityPage({ profile, onBack }) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6 lg:py-10">
       <header className="flex items-center gap-3">
-        <Button variant="secondary" onClick={onBack}>Voltar</Button>
+        <Button data-testid="nav-painel" variant="secondary" onClick={onBack}>Voltar</Button>
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">{profile.nome}</p>
           <h1 className="text-2xl font-bold">Disponibilidade e bloqueios</h1>
         </div>
       </header>
-      {status === STATUS.ERROR && <ErrorState message={errorMessage} onRetry={loadData} />}
+      {status === STATUS.ERROR && <div data-testid="erro-disponibilidade"><ErrorState message={errorMessage} onRetry={loadData} /></div>}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <h2 className="text-xl font-bold">Disponibilidade semanal</h2>
           <p className="mt-1 text-sm text-muted">Defina os períodos disponíveis para agendamento.</p>
           <form onSubmit={addAvailability} className="mt-4 space-y-4">
-            <Input label="Dia da semana" name="weekday" type="select" value={weekday} onChange={setWeekday} options={WEEKDAYS} required />
+            <Input label="Dia da semana" name="weekday" type="select" testId="disp-dia" value={weekday} onChange={setWeekday} options={WEEKDAYS} required />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="A partir de" name="start" type="time" value={start} onChange={setStart} required />
-              <Input label="Até" name="end" type="time" value={end} onChange={setEnd} required />
+              <Input label="A partir de" name="start" type="time" testId="disp-inicio" value={start} onChange={setStart} required />
+              <Input label="Até" name="end" type="time" testId="disp-fim" value={end} onChange={setEnd} required />
             </div>
-            <Button type="submit" loading={busy} className="w-full">Adicionar faixa</Button>
+            <Button data-testid="disp-adicionar" type="submit" loading={busy} className="w-full">Adicionar faixa</Button>
           </form>
           <div className="mt-5 space-y-2">
             {availability.length ? availability.map((item) => (
@@ -175,13 +175,13 @@ export function TeacherAvailabilityPage({ profile, onBack }) {
           <h2 className="text-xl font-bold">Bloquear uma data</h2>
           <p className="mt-1 text-sm text-muted">O bloqueio impede novas reservas, sem cancelar aulas já marcadas.</p>
           <form onSubmit={addBlock} className="mt-4 space-y-4">
-            <Input label="Data" name="data" type="date" value={blockDate} onChange={setBlockDate} min={todayInSaoPaulo()} required />
+            <Input label="Data" name="data" type="date" testId="bloq-data" value={blockDate} onChange={setBlockDate} min={todayInSaoPaulo()} required />
             <Input label="Motivo (opcional)" name="motivo" value={blockReason} onChange={setBlockReason} />
-            <Button type="submit" variant="secondary" loading={busy} className="w-full">Bloquear data</Button>
+            <Button data-testid="bloq-adicionar" type="submit" variant="secondary" loading={busy} className="w-full">Bloquear data</Button>
           </form>
           <div className="mt-5 space-y-2">
             {blocks.length ? blocks.map((block) => (
-              <div key={block.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+              <div key={block.id} data-testid="bloq-item" className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
                 <span className="text-sm font-medium">{formatLocalDate(block.data, { dateStyle: 'long' })} · {block.motivo || 'Data bloqueada'}</span>
                 <Button variant="danger" onClick={() => removeRow('bloqueios', block.id)}>Remover</Button>
               </div>

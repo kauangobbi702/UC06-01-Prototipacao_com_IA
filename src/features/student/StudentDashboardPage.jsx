@@ -127,8 +127,8 @@ export function StudentDashboardPage({ onBrowseLessons, onEditProfile, onLogout 
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onBrowseLessons}>Ver Professores(as) e aulas</Button>
-          <Button variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
-          <Button variant="ghost" onClick={onLogout}>Sair</Button>
+          <Button data-testid="nav-perfil" variant="secondary" onClick={onEditProfile}>Meu perfil</Button>
+          <Button data-testid="logout" variant="ghost" onClick={onLogout}>Sair</Button>
         </div>
       </header>
 
@@ -153,7 +153,7 @@ export function StudentDashboardPage({ onBrowseLessons, onEditProfile, onLogout 
             const canChange = Date.now() <= new Date(booking.inicio).getTime()
               - booking.antecedencia_cancelamento_horas * 60 * 60 * 1000;
             return (
-              <li key={booking.id}>
+              <li key={booking.id} data-testid="reserva-item">
                 <Card>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -165,12 +165,12 @@ export function StudentDashboardPage({ onBrowseLessons, onEditProfile, onLogout 
                   </div>
                   {['pendente', 'confirmado'].includes(booking.status) && canChange && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="secondary" loading={busyId === booking.id} onClick={() => cancelBooking(booking)}>Cancelar</Button>
+                      <Button data-testid="btn-cancelar" variant="secondary" loading={busyId === booking.id} onClick={() => cancelBooking(booking)}>Cancelar</Button>
                       <Button variant="secondary" loading={busyId === booking.id} onClick={() => startReschedule(booking)}>Reagendar</Button>
                     </div>
                   )}
                   {['pendente', 'confirmado'].includes(booking.status) && !canChange && (
-                    <p className="mt-3 text-sm text-muted">O prazo para alterar esta aula terminou.</p>
+                    <p data-testid="msg-fora-prazo" className="mt-3 text-sm text-muted">O prazo para alterar esta aula terminou.</p>
                   )}
                   {reschedule?.booking.id === booking.id && (
                     <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={confirmReschedule}>
